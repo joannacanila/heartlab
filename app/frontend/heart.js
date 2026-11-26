@@ -1,7 +1,7 @@
 /* HEARTLAB heart: a raymarched anatomical form drawn as an engraved contour study (plain WebGL, no libraries).
    The surface is rendered as horizontal section lines whose weight follows the light, like a scientific plate.
-   One data-driven element: a crimson level that rises with the model estimate supplied by the page
-   (setLevel(0..1) = position of the backend estimate within the observed range of state rates).
+   It is purely an illustration: the page never passes it model output, and it has no beat or pulse.
+   On the landing page it is drawn in "ghost" mode: lines only, no paper fill, so it sits inside the background.
    The anatomy is an artistic approximation; nothing about it is simulated physiology. */
 (function () {
   const VERT = `attribute vec2 a;varying vec2 v;void main(){v=a;gl_Position=vec4(a,0.,1.);}`;
@@ -11,7 +11,7 @@ ${deriv ? "#extension GL_OES_standard_derivatives : enable" : ""}
 precision highp float;
 varying vec2 v;
 uniform vec2 uRes;
-uniform float uYaw, uPitch, uBeat, uLevel, uLevelOn;
+uniform float uYaw, uPitch, uGhost;
 uniform vec3 uLight, uPaper, uShade, uInk, uInk2, uAccent;
 
 mat3 rotX(float a){float c=cos(a),s=sin(a);return mat3(1.,0.,0.,0.,c,s,0.,-s,c);}
@@ -35,7 +35,7 @@ float seg2(vec2 p, vec2 a, vec2 b){vec2 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/d
 
 // x: distance, y: material (0 myocardium, 1 arterial, 2 venous)
 vec2 map(vec3 p){
-  float sq = 1.-.018*uBeat;
+  float sq = 1.;
   vec3 q = vec3(p.x, p.y, p.z*1.22);
   float vent = sdRoundCone(q/sq, vec3(.42,-.98,.12), vec3(-.02,.26,-.04), .1, .66)*sq;
   float rv = sdEll(rotZ(.35)*(p-vec3(-.2,-.06,.2))/sq, vec3(.5,.56,.34))*sq;
@@ -114,7 +114,8 @@ void main(){
   }
   if(!hit){
     float a = 1.-smoothstep(0., 2.4/uRes.y*t, minD);
-    gl_FragColor = vec4(uInk*a*.9, a*.9);
+    a *= mix(.9, .5, uGhost);
+    gl_FragColor = vec4(uInk*a, a);
     return;
   }
   vec3 p=ro+rd*t, n=calcNormal(p), V=-rd;
@@ -132,15 +133,17 @@ void main(){
   float gg = seg2(p.xy, vec2(.13,.3), vec2(.42,-.86));
   float art = exp(-gg*gg/.0006)*smoothstep(.0,.25,p.z);
   vec3 lineCol = h.y>1.5 ? uInk2 : uInk;
-  float myo = h.y<.5 || (h.y<1.5 && art>.5) ? 1. : 0.;
-  float below = step(p.y, uLevel)*uLevelOn*myo;
-  lineCol = mix(lineCol, uAccent, below);
-  ${deriv ? "float ringAA = fwidth(p.y)*1.2;" : "float ringAA = .006;"}
-  float ring = (1.-smoothstep(.006, .006+ringAA, abs(p.y-uLevel)))*uLevelOn*myo;
+  // the lit side of the arterial lines picks up the accent, so the drawing carries the page's one colour
+  lineCol = mix(lineCol, uAccent, (h.y>.5 && h.y<1.5 ? .55 : 0.)*uGhost);
+  float k = clamp(ink,0.,1.)*mix(.55,1.,tone);
+  if (uGhost > .5) {
+    // lines only, premultiplied alpha; a faint shade keeps the form readable without a solid fill
+    float a = clamp(k*.9 + tone*.07, 0., 1.);
+    gl_FragColor = vec4(lineCol*k*.9 + uShade*tone*.07, a);
+    return;
+  }
   vec3 ground = mix(uPaper, uShade, tone*.55);
-  vec3 col = mix(ground, lineCol, clamp(ink,0.,1.)*mix(.55,1.,tone));
-  col = mix(col, uAccent, ring);
-  gl_FragColor = vec4(col,1.);
+  gl_FragColor = vec4(mix(ground, lineCol, k),1.);
 }`;
 
   function compile(gl, type, src) {
@@ -171,17 +174,16 @@ void main(){
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    const U = {}; ["uRes", "uYaw", "uPitch", "uBeat", "uLevel", "uLevelOn", "uLight", "uPaper", "uShade", "uInk", "uInk2", "uAccent"]
+    const U = {}; ["uRes", "uYaw", "uPitch", "uGhost", "uLight", "uPaper", "uShade", "uInk", "uInk2", "uAccent"]
       .forEach((n) => { U[n] = gl.getUniformLocation(prog, n); });
 
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let scale = Math.min(window.devicePixelRatio || 1, 2);
-    const LV_LO = -0.98, LV_HI = 0.62;               // vertical extent of the ventricles in model space
+    let scale = Math.min(window.devicePixelRatio || 1, opts.maxScale || 2);
     const st = { yaw: .28, pitch: .06, vy: 0, vp: 0, ty: .28, tp: .06, drag: 0, lx: -.5, ly: .7, tlx: -.5, tly: .7,
-                 level: LV_LO, tlevel: LV_LO, levelOn: 0, visible: true, last: 0, slow: 0, dirty: true, colors: null };
+                 visible: true, last: 0, slow: 0, dirty: true, colors: null };
 
     function readColors() {
-      const cs = getComputedStyle(document.documentElement);
+      const cs = getComputedStyle(opts.colorsFrom || document.documentElement);
       const g = (n) => hex(cs.getPropertyValue(n) || "#000");
       st.colors = { paper: g("--heart-paper"), shade: g("--heart-shade"), ink: g("--heart-ink"), ink2: g("--heart-ink-2"), accent: g("--accent") };
       st.dirty = true;
@@ -219,8 +221,12 @@ void main(){
     document.addEventListener("visibilitychange", () => { if (!document.hidden) requestAnimationFrame(frame); });
 
     const t0 = performance.now();
+    const minFrame = opts.ghost ? 1000 / 30 : 0;      // a background does not need more than 30 frames a second
+    let lastDraw = 0;
     function frame(now) {
       if (!st.visible || document.hidden || !host.isConnected || host.offsetParent === null) { st.last = 0; return; }
+      if (now - lastDraw < minFrame - 2) { requestAnimationFrame(frame); return; }
+      lastDraw = now;
       const dt = Math.min(.05, (now - (st.last || now)) / 1000); st.last = now;
       const t = (now - t0) / 1000;
       const k = 12, d = 7;
@@ -228,32 +234,24 @@ void main(){
       st.vy += ((ty - st.yaw) * k - st.vy * d) * dt; st.yaw += st.vy * dt;
       st.vp += ((st.tp - st.pitch) * k - st.vp * d) * dt; st.pitch += st.vp * dt;
       st.lx += (st.tlx - st.lx) * Math.min(1, dt * 4); st.ly += (st.tly - st.ly) * Math.min(1, dt * 4);
-      const dl = st.tlevel - st.level; st.level += dl * Math.min(1, dt * (reduce.matches ? 60 : 5));
-      const ph = t % 1;                                // slow, low-amplitude cadence: a sign of life, not physiology
-      const beat = reduce.matches ? 0 : Math.exp(-((ph - .1) ** 2) / .003) + .5 * Math.exp(-((ph - .3) ** 2) / .003);
-      const moving = !reduce.matches || Math.abs(st.vy) + Math.abs(st.vp) > 1e-4 || Math.abs(dl) > 1e-4 || st.dirty;
+      const moving = !reduce.matches || Math.abs(st.vy) + Math.abs(st.vp) > 1e-4 || st.dirty;
       if (moving) {
         resize();
         const c = st.colors;
         gl.uniform2f(U.uRes, canvas.width, canvas.height);
-        gl.uniform1f(U.uYaw, st.yaw); gl.uniform1f(U.uPitch, st.pitch); gl.uniform1f(U.uBeat, beat);
-        gl.uniform1f(U.uLevel, st.level); gl.uniform1f(U.uLevelOn, st.levelOn);
+        gl.uniform1f(U.uYaw, st.yaw); gl.uniform1f(U.uPitch, st.pitch); gl.uniform1f(U.uGhost, opts.ghost ? 1 : 0);
         gl.uniform3f(U.uLight, st.lx, st.ly, .75);
         gl.uniform3fv(U.uPaper, c.paper); gl.uniform3fv(U.uShade, c.shade); gl.uniform3fv(U.uInk, c.ink);
         gl.uniform3fv(U.uInk2, c.ink2); gl.uniform3fv(U.uAccent, c.accent);
         gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         st.dirty = false;
-        if (dt > .03) { if (++st.slow > 20 && scale > .6) { scale *= .8; st.slow = 0; resize(); } } else st.slow = 0;
+        if (dt > (opts.ghost ? .045 : .03)) { if (++st.slow > 12 && scale > .35) { scale *= .8; st.slow = 0; resize(); } } else st.slow = 0;   // adapt to slow GPUs
       }
       requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
-    return {
-      /* f in [0, 1]: where the model estimate sits between the lowest and highest observed state rates. */
-      setLevel(f) { st.levelOn = 1; st.tlevel = LV_LO + Math.max(0, Math.min(1, f)) * (LV_HI - LV_LO); st.dirty = true; },
-      wake() { requestAnimationFrame(frame); },
-    };
+    return { wake() { requestAnimationFrame(frame); } };
   }
 
   window.HeartSpecimen = { mount };

@@ -129,4 +129,14 @@ def index():
     return FileResponse(FRONTEND / "index.html")
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse(FRONTEND / "icons" / "favicon.ico", media_type="image/x-icon")
+
+
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+def apple_touch_icon():
+    return FileResponse(FRONTEND / "icons" / "apple-touch-icon.png", media_type="image/png")
+
+
 app.mount("/static", StaticFiles(directory=FRONTEND), name="static")

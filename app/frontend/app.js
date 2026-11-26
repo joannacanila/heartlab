@@ -1,4 +1,4 @@
-/* Heartlab interface logic. Every estimate, interval and statistic shown comes from the Python backend (/api/*).
+/* HEARTLAB interface logic. Every estimate, interval and statistic shown comes from the Python backend (/api/*).
    The browser only sends inputs, then lays out what comes back. */
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -18,8 +18,7 @@
   const S = {
     status: null, model: null, data: null, sens: null, modelName: "full",
     baselineState: "mean", baseline: null, inputs: {}, price: 0, response: "moderate", elas: -0.25, varyE: false,
-    last: null, pins: [], preset: null, lastWhy: null, gotoAfter: null,
-    tryInputs: {}, tryBase: null, tryLevel: null,
+    last: null, preset: null, lastWhy: null, gotoAfter: null,
   };
 
   async function api(path, opts = {}) {
@@ -51,6 +50,7 @@
     const next = currentTheme() === "dark" ? "light" : "dark";
     $("themeBtn").setAttribute("aria-label", `Switch to ${next} theme`);
     $("themeBtn").querySelector(".theme-label").textContent = next === "dark" ? "Dark" : "Light";
+    $("themeBtn").title = `Switch to ${next} theme`;
   }
   function toggleTheme() {
     const next = currentTheme() === "dark" ? "light" : "dark";
@@ -72,15 +72,12 @@
     const swap = () => {
       VIEWS.forEach((v) => { $(v).hidden = v !== view; });
       document.body.classList.toggle("in-app", view !== "landing");
-      $("appNav").hidden = view === "landing";
+      document.body.classList.toggle("on-landing", view === "landing");
+
       document.querySelectorAll("#appNav a").forEach((a) => { if (a.dataset.view === view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
-      document.title = { landing: "Heartlab", simulate: "Simulate · Heartlab", model: "Model evidence · Heartlab", methods: "Methods & data · Heartlab" }[view];
+      document.title = { landing: "HEARTLAB", simulate: "Simulator · HEARTLAB", model: "Model evidence · HEARTLAB", methods: "Methods & data · HEARTLAB" }[view];
       window.scrollTo(0, 0);
-      if (view === "landing") {
-        if (!heart) heart = window.HeartSpecimen.mount($("heroHeart"), { area: $("landing") });
-        else heart.wake();
-        if (S.tryLevel != null) heart?.setLevel(S.tryLevel);
-      }
+      if (view === "landing") enterLanding();
       if (view === "simulate") enterSimulate();
       if (view === "model") renderModelView();
       if (view === "methods") renderMethodsView();
@@ -90,52 +87,32 @@
     else swap();
   }
 
-  /* ---------------------------------------------------------------- landing preview */
-  function buildTry() {
-    if (!S.status.ready) {
-      $("tryRows").innerHTML = "";
-      document.querySelector(".try-note").textContent = "No dataset is loaded yet, so there is no fitted model to try.";
-      $("tryEst").textContent = "–"; $("enterText").textContent = "Open the simulator to load a dataset";
-      $("stageScale").hidden = true;
-      return;
-    }
-    const b = S.data.bounds;
-    $("tryRows").innerHTML = PREDICTORS.map((p) => `
-      <div class="try-row">
-        <label for="t-${p}">${esc(NAMES[p])}</label>
-        <input type="range" id="t-${p}" min="${b[p].observed_min}" max="${b[p].observed_max}" step="0.1" value="${S.tryBase[p]}">
-        <output id="to-${p}" for="t-${p}">${fmt(S.tryBase[p], 1)}%</output>
-      </div>`).join("");
-    PREDICTORS.forEach((p) => {
-      const r = $(`t-${p}`); paint(r);
-      r.addEventListener("input", () => {
-        S.tryInputs[p] = +r.value; $(`to-${p}`).textContent = `${fmt(+r.value, 1)}%`; paint(r);
-        const moved = PREDICTORS.some((q) => Math.abs(S.tryInputs[q] - S.tryBase[q]) > 1e-9);
-        $("enterText").textContent = moved ? "Open the simulator with these values" : "Open the simulator";
-        tryRun();
-      });
-    });
-    const rates = S.data.states.map((s) => s.observed_rate);
-    S.rateLo = Math.min(...rates); S.rateHi = Math.max(...rates);
-    $("scaleLo").textContent = `Lowest state ${fmt(S.rateLo, 0)}`;
-    $("scaleHi").textContent = `${fmt(S.rateHi, 0)} highest`;
-    tryRunNow();
+  /* ---------------------------------------------------------------- landing */
+  let landingBuilt = false;
+  function enterLanding() {
+    if (landingBuilt) { heart?.wake(); return; }
+    landingBuilt = true;
+    const land = $("landing");
+    heart = window.HeartSpecimen.mount($("heroHeart"), { area: land, ghost: true, colorsFrom: land, maxScale: 1.5 });
+    if (S.data) window.LandingField.mount($("field"), { states: S.data.states, area: land, readout: $("fieldRead"), colorsFrom: land });
+    else $("fieldRead").hidden = true;
+    setupDisclaimer();
   }
-  let tryCtl = null;
-  async function tryRunNow() {
-    tryCtl?.abort(); tryCtl = new AbortController();
-    try {
-      const r = await simulate({ model: "full", baseline_state: "mean", inputs: { ...S.tryInputs } }, tryCtl.signal);
-      const est = r.scenario.estimate, d = r.difference.delta;
-      $("tryEst").textContent = fmt(est, 1);
-      $("tryDelta").textContent = Math.abs(d) < 0.05 ? "at the average" : `${signed(d, 1)} vs average`;
-      const f = (est - S.rateLo) / (S.rateHi - S.rateLo);
-      S.tryLevel = f;
-      heart?.setLevel(f);
-      $("scaleFill").style.width = `${Math.max(0, Math.min(1, f)) * 100}%`;
-    } catch (e) { if (e.name !== "AbortError") $("tryDelta").textContent = e.message; }
+
+  /* The disclaimer: previewed on hover or keyboard focus, pinned open by a click or tap, closed by Escape or a click outside. */
+  function setupDisclaimer() {
+    const box = $("disc"), btn = $("discBtn");
+    const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
+    let pinned = false, timer = 0;
+    const set = (open) => { clearTimeout(timer); box.classList.toggle("open", open); btn.setAttribute("aria-expanded", String(open)); if (!open) pinned = false; };
+    box.addEventListener("mouseenter", () => { if (fine.matches) set(true); });
+    box.addEventListener("mouseleave", () => { if (fine.matches && !pinned) timer = setTimeout(() => set(false), 160); });
+    btn.addEventListener("focus", () => { if (btn.matches(":focus-visible")) set(true); });
+    btn.addEventListener("blur", () => { if (!pinned) set(false); });
+    btn.addEventListener("click", () => { if (pinned) set(false); else { set(true); pinned = true; } });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && box.classList.contains("open")) { set(false); btn.focus(); } });
+    document.addEventListener("pointerdown", (e) => { if (!box.contains(e.target) && box.classList.contains("open")) set(false); });
   }
-  const tryRun = debounce(tryRunNow, 90);
 
   /* ---------------------------------------------------------------- simulate: setup */
   let entered = false;
@@ -143,18 +120,15 @@
     if (entered) { drawCharts(); return; }
     entered = true;
     const ready = S.status.ready;
-    document.querySelector(".presets").hidden = !ready;
     document.querySelector(".sim-grid").hidden = !ready;
     document.querySelector(".start").hidden = !ready;
     if (!ready) { renderUploadInto($("simulate"), true); return; }
     buildBaselineSelect(); buildFactors(); buildPrice(); buildPresets();
     $("resetBtn").addEventListener("click", resetToStart);
-    $("pinBtn").addEventListener("click", pinScenario);
+    $("advBox").addEventListener("toggle", () => { if ($("advBox").open) renderAdvanced(); });
+    document.querySelectorAll("#simulate [data-goto]").forEach((a) => a.addEventListener("click", () => { S.gotoAfter = a.dataset.goto; }));
     await setBaseline("mean", false);
-    let carry = null;
-    try { carry = JSON.parse(sessionStorage.getItem("heartlab-carry") || "null"); sessionStorage.removeItem("heartlab-carry"); } catch (e) { carry = null; }
-    if (carry) PREDICTORS.forEach((p) => { if (isFinite(carry[p])) S.inputs[p] = carry[p]; });
-    writeInputs(); runNow();
+    runNow();
     setupMini();
   }
 
@@ -168,7 +142,6 @@
     S.baselineState = code;
     const b = await api(`/api/baseline?state=${encodeURIComponent(code)}`);
     S.baseline = b.inputs; S.inputs = { ...b.inputs }; S.preset = null;
-    $("resetText").textContent = code === "mean" ? "Reset to average" : `Reset to ${stateName(code)}`;
     $("baselineSelect").value = code;
     S.sens = null; modelBuilt = false;
     writeInputs(); paintPresets();
@@ -177,88 +150,123 @@
 
   const stepFor = (b) => (b.slider_max - b.slider_min > 20 ? 0.1 : 0.05);
   const pctOf = (b, x) => ((x - b.slider_min) / (b.slider_max - b.slider_min)) * 100;
-  function paint(r) {
-    const min = +r.min, max = +r.max, x = +r.value;
-    r.style.setProperty("--fill", `${max > min ? ((x - min) / (max - min)) * 100 : 0}%`);
+  /* Track fill runs from the starting point (or the track's start, for price) to the current value. */
+  function paint(r, from) {
+    const min = +r.min, max = +r.max, x = +r.value, f = from == null ? min : from;
+    const pc = (v) => (max > min ? Math.max(0, Math.min(100, ((v - min) / (max - min)) * 100)) : 0);
+    r.style.setProperty("--a", `${pc(Math.min(f, x))}%`); r.style.setProperty("--b", `${pc(Math.max(f, x))}%`);
   }
   const inRange = (x, lo, hi) => isFinite(x) && x >= lo && x <= hi;
 
   function buildFactors() {
     const b = S.data.bounds;
     $("factorControls").innerHTML = PREDICTORS.map((p) => {
-      const bb = b[p], issue = signIssue(p);
-      return `<div class="factor" data-var="${p}">
+      const bb = b[p];
+      return `<div class="factor" data-var="${p}" id="f-${p}">
         <div class="f-row">
-          <span class="f-name"><label for="n-${p}">${esc(LONG[p])}</label><button class="tip" type="button" aria-expanded="false" aria-controls="tip-${p}" aria-label="About ${esc(LONG[p].toLowerCase())}"><svg aria-hidden="true"><use href="#i-info"/></svg></button></span>
+          <label for="r-${p}">${esc(NAMES[p])}</label>
           <span class="f-delta" id="d-${p}"></span>
-          <span class="num"><input type="number" id="n-${p}" min="${bb.hard_min}" max="${bb.hard_max}" step="${stepFor(bb)}" inputmode="decimal"><span class="unit">%</span></span>
+          <span class="f-val"><input class="f-num" id="v-${p}" type="text" inputmode="decimal" autocomplete="off" spellcheck="false"
+            aria-label="${esc(NAMES[p])}, percent of adults. Type a value from ${fmt(bb.slider_min, 1)} to ${fmt(bb.slider_max, 1)}" aria-describedby="m-${p}"><span class="pct" aria-hidden="true">%</span></span>
         </div>
-        <div class="f-tip" id="tip-${p}" hidden>${esc(V(p).definition || "")}${issue ? ` <b>In this model its coefficient is negative</b>: holding the other three factors fixed, states with more adults in this group had slightly lower estimated rates. That is a conditional association across states, probably reflecting overlap with physical inactivity or differences the model does not measure. It does not mean that a poor diet protects the heart.` : ""}</div>
         <div class="slider" style="--lo:${pctOf(bb, bb.observed_min)}%;--hi:${pctOf(bb, bb.observed_max)}%">
           <i class="band"></i><i class="base-tick" id="bt-${p}"></i>
-          <input type="range" id="r-${p}" min="${bb.slider_min}" max="${bb.slider_max}" step="${stepFor(bb)}" aria-label="${esc(LONG[p])}, percent of adults">
+          <input type="range" id="r-${p}" min="${bb.slider_min}" max="${bb.slider_max}" step="${stepFor(bb)}" aria-describedby="m-${p}">
         </div>
-        <div class="f-meta"><span class="start-v" id="s-${p}"></span><span id="o-${p}"></span></div>
+        <p class="f-meta" id="m-${p}"></p>
       </div>`;
     }).join("");
     PREDICTORS.forEach((p) => {
-      $(`r-${p}`).addEventListener("input", (e) => setInput(p, e.target.value, "range"));
-      $(`n-${p}`).addEventListener("input", (e) => setInput(p, e.target.value, "num"));
-      $(`n-${p}`).addEventListener("blur", () => { if (!isFinite(S.inputs[p])) { S.inputs[p] = S.baseline[p]; writeInputs(); $("formError").hidden = true; schedule(); } });
+      $(`r-${p}`).addEventListener("input", (e) => { clearNumError(p); setInput(p, +e.target.value); $(`v-${p}`).value = fmt(S.inputs[p], 1); });
+      bindNumber(p);
     });
-    $("factorControls").querySelectorAll(".tip").forEach((btn) => btn.addEventListener("click", () => {
-      const open = btn.getAttribute("aria-expanded") !== "true";
-      btn.setAttribute("aria-expanded", String(open)); $(btn.getAttribute("aria-controls")).hidden = !open;
-    }));
   }
 
-  function setInput(p, raw, from) {
-    const num = $(`n-${p}`), rng = $(`r-${p}`), b = S.data.bounds[p];
-    const x = parseFloat(raw), ok = raw !== "" && inRange(x, b.hard_min, b.hard_max);
-    num.classList.toggle("invalid", !ok);
-    if (ok) {
-      S.inputs[p] = x;
-      if (from === "range") num.value = (+x).toFixed(1); else rng.value = x;
-      paint(rng);
-    } else S.inputs[p] = NaN;
-    S.preset = null; paintPresets();
-    factorMeta(p);
-    if (ok) schedule(); else showError(`${LONG[p]} must be between ${fmt(b.hard_min, 0)} and ${fmt(b.hard_max, 0)}%.`);
+  /* Typed values: Enter or leaving the field commits, Escape restores the previous value, arrow keys nudge by 0.1
+     (Shift: 1). Values are kept to one decimal (the precision of the CDC percentages) and must lie on the slider's span,
+     so the slider and the number always show the same value. Anything else is refused with a message, never clamped. */
+  const parseNum = (t) => {
+    const s = String(t).trim().replace(/%$/, "").trim().replace(",", ".").replace("−", "-");
+    return /^-?(\d+\.?\d*|\.\d+)$/.test(s) ? parseFloat(s) : null;
+  };
+  const round1 = (x) => Math.round(x * 10) / 10;
+  function bindNumber(p) {
+    const el = $(`v-${p}`), b = S.data.bounds[p];
+    const ok = (v) => v != null && v >= round1(b.slider_min) && v <= round1(b.slider_max);
+    el.addEventListener("focus", () => el.select());
+    el.addEventListener("input", () => { clearNumError(p); el.classList.toggle("bad", !ok(parseNum(el.value))); });
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commitNumber(p); el.select(); }
+      else if (e.key === "Escape") { e.preventDefault(); clearNumError(p); el.classList.remove("bad"); el.value = fmt(S.inputs[p], 1); el.select(); }
+      else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault();
+        const v = round1((parseNum(el.value) ?? S.inputs[p]) + (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? 1 : 0.1));
+        el.value = fmt(Math.min(round1(b.slider_max), Math.max(round1(b.slider_min), v)), 1); commitNumber(p); el.select();
+      }
+    });
+    el.addEventListener("blur", () => commitNumber(p));
+  }
+  function commitNumber(p) {
+    const el = $(`v-${p}`), b = S.data.bounds[p], lo = round1(b.slider_min), hi = round1(b.slider_max);
+    const v = parseNum(el.value);
+    el.classList.remove("bad");
+    if (v == null || v < lo || v > hi) {
+      if (el.value.trim() !== fmt(S.inputs[p], 1)) numError(p, v == null ? `“${el.value.trim()}” is not a number. Type a value such as ${fmt(S.inputs[p], 1)}.` : `Type a value from ${fmt(lo, 1)} to ${fmt(hi, 1)}%, the span of this slider.`);
+      el.value = fmt(S.inputs[p], 1);
+      return;
+    }
+    const x = round1(v);
+    if (x === round1(S.inputs[p])) { el.value = fmt(S.inputs[p], 1); return; }
+    $(`r-${p}`).value = x;
+    setInput(p, x);
+  }
+  function numError(p, msg) {
+    $(`f-${p}`).classList.add("err"); $(`v-${p}`).setAttribute("aria-invalid", "true");
+    $(`m-${p}`).textContent = msg;
+  }
+  function clearNumError(p) {
+    if (!$(`f-${p}`).classList.contains("err")) return;
+    $(`f-${p}`).classList.remove("err"); $(`v-${p}`).removeAttribute("aria-invalid"); factorMeta(p);
+  }
+
+  function setInput(p, x) {
+    S.inputs[p] = x; S.preset = null;
+    paint($(`r-${p}`), S.baseline[p]); paintPresets(); factorMeta(p); schedule();
   }
 
   function factorMeta(p) {
     const b = S.data.bounds[p], x = S.inputs[p], d = x - S.baseline[p];
-    const el = $(`d-${p}`);
-    const moved = isFinite(d) && Math.abs(d) >= 0.005;
-    el.textContent = moved ? pts(d) : "";
-    el.classList.toggle("moved", moved);
-    $(`s-${p}`).textContent = `Start ${fmt(S.baseline[p], 1)}%`;
-    const out = isFinite(x) && (x < b.observed_min || x > b.observed_max);
-    $(`o-${p}`).textContent = out ? "Beyond any state: extrapolating" : `States range ${fmt(b.observed_min, 1)}–${fmt(b.observed_max, 1)}%`;
-    $(`o-${p}`).classList.toggle("out", out);
+    const moved = Math.abs(d) >= 0.05;
+    if (document.activeElement !== $(`v-${p}`)) $(`v-${p}`).value = fmt(x, 1);
+    $(`d-${p}`).textContent = moved ? pts(d) : "";
+    $(`d-${p}`).classList.toggle("moved", moved);
+    $(`f-${p}`).classList.toggle("moved", moved);
+    const out = x < b.observed_min || x > b.observed_max;
+    $(`f-${p}`).classList.toggle("out", out);
+    if (!$(`f-${p}`).classList.contains("err")) $(`m-${p}`).innerHTML = out
+      ? `Outside the range seen in the historical state data (${fmt(b.observed_min, 1)}–${fmt(b.observed_max, 1)}%).`
+      : `Starting point ${fmt(S.baseline[p], 1)}% · States ranged ${fmt(b.observed_min, 1)}–${fmt(b.observed_max, 1)}%`;
     $(`bt-${p}`).style.setProperty("--b", `${pctOf(b, S.baseline[p])}%`);
+    $(`r-${p}`).setAttribute("aria-valuetext", `${fmt(x, 1)} percent${moved ? `, ${pts(d)} from the starting point` : ""}`);
   }
 
   function writeInputs() {
-    PREDICTORS.forEach((p) => {
-      $(`n-${p}`).value = (+S.inputs[p]).toFixed(1); $(`r-${p}`).value = S.inputs[p];
-      $(`n-${p}`).classList.remove("invalid"); paint($(`r-${p}`)); factorMeta(p);
-    });
-    $("priceNum").value = S.price; $("priceRange").value = S.price; paint($("priceRange")); $("priceNum").classList.remove("invalid");
+    PREDICTORS.forEach((p) => { $(`r-${p}`).value = S.inputs[p]; paint($(`r-${p}`), S.baseline[p]); factorMeta(p); });
+    $("priceRange").value = S.price; paint($("priceRange")); $("priceOut").textContent = `${fmt(S.price, 0)}%`;
     document.querySelectorAll("#responseSeg input").forEach((i) => { i.checked = i.value === S.response; });
     $("customRow").hidden = S.response !== "custom";
     $("elasNum").value = S.elas;
     responseHint();
+    $("resetBtn").disabled = isAtStart();
   }
+  const isAtStart = () => S.price === 0 && PREDICTORS.every((p) => Math.abs(S.inputs[p] - S.baseline[p]) < 1e-9);
 
   function buildPrice() {
     $("responseSeg").innerHTML = RESPONSES.map((r) => `<label><input type="radio" name="resp" value="${r.k}"${r.k === S.response ? " checked" : ""}>${r.label}<small>${r.e == null ? "set" : r.e === 0 ? "0" : fmt(r.e, 2)}</small></label>`).join("");
-    const pr = $("priceRange"), pn = $("priceNum");
-    pr.addEventListener("input", () => { S.price = +pr.value; pn.value = pr.value; pn.classList.remove("invalid"); paint(pr); S.preset = null; paintPresets(); responseHint(); schedule(); });
-    pn.addEventListener("input", () => {
-      const x = parseFloat(pn.value), ok = inRange(x, 0, 100); pn.classList.toggle("invalid", !ok);
-      if (!ok) { showError("Price increase must be between 0 and 100%."); return; }
-      S.price = x; pr.value = x; paint(pr); S.preset = null; paintPresets(); responseHint(); schedule();
+    const pr = $("priceRange");
+    pr.addEventListener("input", () => { S.price = +pr.value; $("priceOut").textContent = `${fmt(S.price, 0)}%`; paint(pr); $("resetBtn").disabled = isAtStart(); responseHint(); schedule(); });
+    $("policyBox").addEventListener("toggle", () => {
+      if (!$("policyBox").open && S.price > 0) { S.price = 0; writeInputs(); runNow(); }   // closing the section removes the price rise
     });
     $("responseSeg").addEventListener("change", (e) => {
       S.response = e.target.value;
@@ -277,49 +285,35 @@
   function responseHint() {
     const e = S.elas, p = S.price || 10;
     $("responseHint").textContent = e === 0
-      ? "No response: the share of adults who smoke stays put, so a price change does not move the estimate."
-      : `A ${fmt(p, 0)}% price rise would cut the share of adults who smoke by ${fmt(Math.abs(e * p), 1)}% of its level (elasticity ${fmt(e, 2)}). These levels are illustrative choices, not measured values.`;
+      ? "No response: the share of adults who smoke stays the same, so the price has no effect on the estimate."
+      : `A ${fmt(p, 0)}% price rise would lower the share of adults who smoke by ${fmt(Math.abs(e * p), 1)}% of its level. These levels are illustrative assumptions, not measured values.`;
   }
 
   /* ---------------------------------------------------------------- presets */
   function presetDefs() {
-    const b = S.data.bounds, q = S.data.quartiles, rows = S.data.states;
+    const q = S.data.quartiles, rows = S.data.states;
     const minSm = rows.reduce((a, r) => (r.smoking < a.smoking ? r : a));
     return [
-      { id: "smoke-low", label: `Smoking as low as ${minSm.state_name}`, title: `Smoking set to ${fmt(minSm.smoking, 1)}%, the lowest of any jurisdiction (${minSm.state_name}); other factors stay at the start.`,
-        apply: () => ({ inputs: { smoking: minSm.smoking } }) },
-      { id: "obesity-5", label: "Obesity 5 points lower", title: "Obesity prevalence 5 percentage points below the start.",
-        apply: () => ({ inputs: { obesity: Math.max(b.obesity.hard_min, S.baseline.obesity - 5) } }) },
-      { id: "inactive-q", label: "Inactivity at the best quarter of states", title: `Physical inactivity set to ${fmt(q.inactivity.p25, 1)}%, the level a quarter of jurisdictions are at or below.`,
-        apply: () => ({ inputs: { inactivity: q.inactivity.p25 } }) },
-      { id: "price-20", label: "Cigarettes 20% dearer", title: "A 20% cigarette price rise with a moderate assumed smoking response (−0.25).",
-        apply: () => ({ price: 20, response: "moderate" }) },
+      { id: "habits", label: "Better habits",
+        title: `Smoking, obesity and inactivity set to ${fmt(q.smoking.p25, 1)}%, ${fmt(q.obesity.p25, 1)}% and ${fmt(q.inactivity.p25, 1)}%: the levels a quarter of states were at or below in 1998.`,
+        apply: () => ({ smoking: q.smoking.p25, obesity: q.obesity.p25, inactivity: q.inactivity.p25 }) },
+      { id: "smoke-low", label: "Lower smoking",
+        title: `Smoking set to ${fmt(minSm.smoking, 1)}%, the lowest of any state in 1998 (${minSm.state_name}).`,
+        apply: () => ({ smoking: minSm.smoking }) },
     ];
   }
   function buildPresets() {
-    $("presetList").innerHTML = presetDefs().map((p) => `<button class="preset" type="button" data-preset="${p.id}" aria-pressed="false" title="${esc(p.title)}">${esc(p.label)}</button>`).join("") +
-      `<span class="preset-state" id="profileWrap"><label for="profileSelect">Match a state:</label><select id="profileSelect"><option value="">Choose…</option>${S.data.states.map((s) => `<option value="${s.state}">${esc(s.state_name)}</option>`).join("")}</select></span>`;
+    $("presetList").innerHTML = presetDefs().map((p) => `<button class="preset" type="button" data-preset="${p.id}" aria-pressed="false" title="${esc(p.title)}">${esc(p.label)}</button>`).join("");
     $("presetList").querySelectorAll(".preset").forEach((btn) => btn.addEventListener("click", () => applyPreset(btn.dataset.preset)));
-    $("profileSelect").addEventListener("change", (e) => {
-      const r = stateRow(e.target.value); if (!r) return;
-      S.inputs = Object.fromEntries(PREDICTORS.map((p) => [p, r[p]]));
-      S.price = 0; S.preset = `state:${r.state}`;
-      writeInputs(); paintPresets(); runNow();
-    });
   }
   function applyPreset(id) {
-    const a = presetDefs().find((d) => d.id === id).apply();
-    S.inputs = { ...S.baseline, ...(a.inputs || {}) };
-    S.price = a.price || 0;
-    if (a.response) { S.response = a.response; S.elas = RESPONSES.find((r) => r.k === a.response).e; }
+    S.inputs = { ...S.baseline, ...presetDefs().find((d) => d.id === id).apply() };
     S.preset = id;
     writeInputs(); paintPresets(); runNow();
   }
   function paintPresets() {
     document.querySelectorAll(".preset").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === S.preset)));
-    const isState = !!S.preset?.startsWith("state:");
-    $("profileWrap")?.classList.toggle("on", isState);
-    if ($("profileSelect")) $("profileSelect").value = isState ? S.preset.slice(6) : "";
+    if ($("resetBtn")) $("resetBtn").disabled = isAtStart();
   }
 
   function resetToStart() {
@@ -369,79 +363,113 @@
   function renderOutcome() {
     const r = S.last, d = r.difference, ch = changes(r);
     const moved = Math.abs(d.delta) >= 0.05;
-    const excl = d.ci_low > 0 || d.ci_high < 0;
+    const isScenario = ch.length > 0 || S.price > 0;
     const h = $("headline");
     if (!$("hBig")) {
       h.innerHTML = `<p class="h-label" id="hLabel"></p><span class="h-big" id="hBig"></span>
-        <div class="h-side"><span class="h-change" id="hChange"></span><span class="h-unit">${esc(yUnit())} adults aged 35+, age-adjusted</span></div>
-        <p class="h-plain" id="hPlain"></p><div id="hFlag" style="grid-column:1/-1;display:flex;flex-direction:column;gap:8px"></div>`;
+        <p class="h-unit">Estimated coronary heart disease deaths per 100,000 people aged 35 and older, per year</p>
+        <div class="cmp" id="hCmp" role="img"></div>
+        <p class="h-plain" id="hPlain"></p><div class="h-flag" id="hFlag"></div>`;
     }
-    const isScenario = ch.length || S.price > 0;
-    $("hLabel").textContent = isScenario ? "Estimated death rate from coronary heart disease, your scenario"
-      : `Estimated death rate from coronary heart disease, ${S.baselineState === "mean" ? "average jurisdiction" : stateName(S.baselineState)}`;
+    $("hLabel").textContent = isScenario ? "Your scenario" : `Starting point: ${S.baselineState === "mean" ? `average of ${nJur()} jurisdictions` : stateName(S.baselineState)}`;
     tween($("hBig"), r.scenario.estimate);
-    $("hChange").innerHTML = moved
-      ? `${signed(d.delta, 1)} <span class="from">from ${fmt(r.baseline.estimate, 1)} at the start</span>`
-      : `<span class="from">${isScenario ? "About the same as the start" : "Starting point"}</span>`;
-
-    const what = ch.map((i) => `${NAMES[i.variable].toLowerCase()} ${i.change < 0 ? "down" : "up"} ${fmt(Math.abs(i.change), 1)} pts`);
-    let plain;
-    if (!isScenario) {
-      plain = `This is the model’s estimate for ${esc(startName())}. Move a slider or pick a starting scenario above; the estimate updates as you go.`;
-    } else if (!moved) {
-      plain = `With ${esc(what.join(", ") || "this price change")}, the estimate barely moves from the start.`;
+    renderCompare(r, isScenario);
+    let plain = "";
+    if (isScenario && moved) {
+      const excl = d.ci_low > 0 || d.ci_high < 0;
+      plain = `Your scenario is estimated to be <b>${fmt(Math.abs(d.delta), 1)} deaths per 100,000 ${d.delta < 0 ? "lower" : "higher"}</b> than the starting point. ` +
+        `Uncertainty range: ${signed(d.ci_low, 1)} to ${signed(d.ci_high, 1)}${excl ? "." : ", so the model cannot rule out no change."}`;
+    } else if (S.baselineState !== "mean") {
+      const s = stateRow(S.baselineState);
+      plain = `${esc(s.state_name)}’s observed rate in 1998 was ${fmt(s.observed_rate, 1)}. The starting point is the model’s estimate for its four factors.`;
+    } else if (isScenario) {
+      plain = "Your scenario gives the same estimate as the starting point.";
     } else {
-      plain = `With ${esc(what.join(", ") || "this price change")}, the model estimates a state-level rate <b>${fmt(Math.abs(d.delta), 1)} ${d.delta < 0 ? "lower" : "higher"}</b> (${signed(r.relative_change_pct, 1)}%). ` +
-        `The 95% confidence interval for the change, ${fmt(d.ci_low, 1)} to ${fmt(d.ci_high, 1)}, ${excl ? `lies entirely ${d.delta < 0 ? "below" : "above"} zero.` : "includes zero, so the model cannot tell this apart from no change."}`;
+      plain = "This is the starting point. Drag a slider, type a value or try a preset to see how the estimate changes.";
     }
     $("hPlain").innerHTML = plain;
+    $("hPlain").hidden = !plain;
 
     const fv = ch.find((i) => i.variable === "fruit_veg") && signIssue("fruit_veg");
-    let flag = "";
-    if (fv) {
-      const lowered = ch.find((i) => i.variable === "fruit_veg").change < 0;
-      flag += `<details class="flagbox"><summary class="flag">Why does ${lowered ? "lowering" : "raising"} low fruit and vegetable intake ${lowered ? "raise" : "lower"} the estimate?</summary><p class="f-tip">In this model the low-intake coefficient is negative (${fmt(fv.estimate, 2)} per point). Holding smoking, obesity and inactivity fixed, states with more low-intake adults had slightly lower rates. That is a conditional association across states, probably reflecting overlap with inactivity or factors the model does not measure. It does not mean a poor diet protects the heart. <a href="#/model" data-goto="m-coef">See the coefficients</a></p></details>`;
-    }
-    if (S.preset?.startsWith("state:")) {
-      const s = stateRow(S.preset.slice(6));
-      flag += `<p class="f-tip">These are ${esc(s.state_name)}’s 1998 risk-factor values. For them the model estimates ${fmt(r.scenario.estimate, 1)}; ${esc(s.state_name)}’s observed rate was ${fmt(s.observed_rate, 1)}. The gap is what the four factors do not explain.</p>`;
-    } else if (S.baselineState !== "mean" && !isScenario) {
-      const s = stateRow(S.baselineState);
-      flag += `<p class="f-tip">${esc(s.state_name)}’s observed 1998 rate was ${fmt(s.observed_rate, 1)}. The simulation starts from the model’s estimate for its risk factors (${fmt(s.fitted_rate, 1)}), so changes reflect only the factors you move.</p>`;
-    }
-    $("hFlag").innerHTML = flag;
+    $("hFlag").innerHTML = fv ? `<details class="flagbox"><summary class="flag">Why does ${ch.find((i) => i.variable === "fruit_veg").change < 0 ? "lowering" : "raising"} low fruit &amp; veg intake move the estimate this way?</summary>
+      <p class="f-tip">In this model, states with more adults eating little fruit and vegetables had slightly lower rates once the other three factors are taken into account. That is a statistical pattern across states, probably because diet overlaps with the other factors. It does not mean a poor diet protects the heart. <a href="#/model" data-goto="m-coef">Read the full explanation</a></p></details>` : "";
     $("hFlag").querySelectorAll("[data-goto]").forEach((a) => a.addEventListener("click", () => { S.gotoAfter = a.dataset.goto; }));
 
     renderWhy(r, ch);
+    if ($("advBox").open) renderAdvanced();
     drawCharts();
     renderPathway(r.policy);
-    renderCertainty(r);
-    renderPins();
     const extra = r.warnings.filter((w) => !/outside the observed state range/.test(w));
     $("warnings").innerHTML = extra.map((w) => `<li>${esc(w)}</li>`).join("");
-    $("mini").innerHTML = `<b>${fmt(r.scenario.estimate, 1)}</b><span>per 100,000</span><span class="md">${moved ? signed(d.delta, 1) : "at start"}</span>`;
-    $("pinBtn").disabled = S.pins.length >= 4;
+    $("mini").innerHTML = `<b>${fmt(r.scenario.estimate, 1)}</b><span>deaths per 100,000</span><span class="md">${isScenario && moved ? signed(d.delta, 1) : "starting point"}</span>`;
+    h.classList.remove("tick"); void h.offsetWidth; h.classList.add("tick");
+  }
+
+  /* Starting point and scenario side by side, both measured from zero on one fixed scale (up to the highest observed
+     state rate), so the length of each bar is the estimate itself. The scenario bar carries its uncertainty range and
+     a tick where the starting point ends. */
+  function renderCompare(r, isScenario) {
+    const hi = Math.max(...S.data.states.map((s) => s.observed_rate), r.baseline.estimate, r.scenario.ci_high) * 1.04;
+    const w = (x) => `${Math.max(0, Math.min(100, (x / hi) * 100)).toFixed(2)}%`;
+    const sc = r.scenario;
+    $("hCmp").setAttribute("aria-label", `Starting point ${fmt(r.baseline.estimate, 1)}; your scenario ${fmt(sc.estimate, 1)}, uncertainty range ${fmt(sc.ci_low, 1)} to ${fmt(sc.ci_high, 1)}.`);
+    if (!$("cmpBase")) {
+      $("hCmp").innerHTML = `
+        <div class="cmp-row base"><span class="cmp-k">Starting point</span><span class="cmp-bar"><i id="cmpBase"></i></span><span class="cmp-v" id="cmpBaseV"></span></div>
+        <div class="cmp-row scen"><span class="cmp-k">Your scenario</span><span class="cmp-bar"><i id="cmpScen"></i><em id="cmpCi"></em><b id="cmpTick"></b></span><span class="cmp-v" id="cmpScenV"></span></div>`;
+    }
+    $("cmpBase").style.width = w(r.baseline.estimate); $("cmpBaseV").textContent = fmt(r.baseline.estimate, 1);
+    $("cmpScen").style.width = w(sc.estimate); $("cmpScenV").textContent = fmt(sc.estimate, 1);
+    $("cmpCi").style.left = w(sc.ci_low); $("cmpCi").style.width = `calc(${w(sc.ci_high)} - ${w(sc.ci_low)})`;
+    $("cmpTick").style.left = w(r.baseline.estimate);
+    $("hCmp").classList.toggle("same", !isScenario);
+  }
+
+  /* Statistical details for readers who want them, folded under the result. */
+  function renderAdvanced() {
+    const m = fullModel(), r = S.last, a = m.alpha;
+    if (!r) return;
+    const row = (name, x) => `<tr><td class="term">${name}</td><td>${fmt(x.estimate, 1)}</td><td>${fmt(x.ci_low, 1)} to ${fmt(x.ci_high, 1)}</td><td>${fmt(x.pi_low, 1)} to ${fmt(x.pi_high, 1)}</td></tr>`;
+    const d = r.difference;
+    $("advBody").innerHTML = `
+      <dl class="adv-stats">
+        <div><dt>R²</dt><dd>${fmt(m.r_squared, 3)}</dd></div>
+        <div><dt>Adjusted R²</dt><dd>${fmt(m.adj_r_squared, 3)}</dd></div>
+        <div><dt>F(${m.df_model}, ${m.df_resid})</dt><dd>${fmt(m.f_statistic, 2)} <small>p ${pfmt(m.f_p_value)}</small></dd></div>
+        <div><dt>Jurisdictions</dt><dd>${m.n}</dd></div>
+      </dl>
+      <div class="table-scroll"><table class="data compact"><caption class="sr-only">Coefficients</caption>
+        <thead><tr><th>Factor</th><th>Per +1 point</th><th>95% CI</th><th>p</th><th>p (HC3)</th></tr></thead>
+        <tbody>${m.coefficients.filter((c) => c.term !== "const").map((c) => `<tr><td class="term">${esc(NAMES[c.term])}</td><td>${signed(c.estimate, 2)}</td><td>${fmt(c.ci_low, 2)} to ${fmt(c.ci_high, 2)}</td><td class="${c.p_value < a ? "" : "ns"}">${pfmt(c.p_value)}</td><td class="${c.hc3_p_value < a ? "" : "ns"}">${pfmt(c.hc3_p_value)}</td></tr>`).join("")}</tbody></table></div>
+      <div class="table-scroll"><table class="data compact"><caption class="sr-only">This scenario</caption>
+        <thead><tr><th>This scenario</th><th>Estimate</th><th>95% CI</th><th>95% prediction interval</th></tr></thead>
+        <tbody>${row("Starting point", r.baseline)}${row("Your scenario", r.scenario)}
+          <tr><td class="term">Change</td><td>${signed(d.delta, 1)}</td><td>${signed(d.ci_low, 1)} to ${signed(d.ci_high, 1)}</td><td class="ns">SE ${fmt(d.std_error, 2)}</td></tr></tbody></table></div>
+      <p class="foot">The uncertainty range shown above is the 95% confidence interval for the change. The prediction interval is wider: it is where a single state’s rate would be expected to fall.</p>
+      <p class="out-more"><a href="#/model" data-goto="m-unc">All model evidence: diagnostics, Monte Carlo and sensitivity</a></p>`;
+    $("advBody").querySelectorAll("[data-goto]").forEach((x) => x.addEventListener("click", () => { S.gotoAfter = x.dataset.goto; }));
   }
 
   function drawCharts() {
     const r = S.last; if (!r || $("simulate").hidden) return;
-    const label = `Estimated rate ${fmt(r.scenario.estimate, 1)} with 95% confidence interval ${fmt(r.scenario.ci_low, 1)} to ${fmt(r.scenario.ci_high, 1)}, starting estimate ${fmt(r.baseline.estimate, 1)}, shown against the observed rates of ${nJur()} jurisdictions.`;
+    const label = `Estimate ${fmt(r.scenario.estimate, 1)}, starting point ${fmt(r.baseline.estimate, 1)}, shown against the observed 1998 rates of ${nJur()} jurisdictions.`;
     if (!$("rangeSvg")) {
-      $("rangeChart").innerHTML = `<div class="section-h">Where the estimate sits among the states</div><div id="rangeSvg"></div>
-        <p class="legend"><span><i class="lg-state"></i>Observed 1998 rate, one dot per jurisdiction</span><span><i class="lg-start"></i>Start</span><span><i class="lg-scen"></i>Scenario</span><span><i class="lg-ci"></i>95% confidence interval</span></p>`;
+      $("rangeChart").innerHTML = `<div class="section-h">Compared with the states</div><div id="rangeSvg"></div>
+        <p class="legend"><span><i class="lg-state"></i>States in 1998</span><span><i class="lg-start"></i>Starting point</span><span><i class="lg-scen"></i>Your scenario, with its uncertainty range</span></p>`;
     }
     Charts.range($("rangeSvg"), {
       states: S.data.states.map((s) => ({ rate: s.observed_rate, name: s.state_name })),
-      baseline: r.baseline.estimate, scenario: r.scenario, pins: S.pins, label,
+      baseline: r.baseline.estimate, scenario: r.scenario, pins: [], label,
     });
-    if (S.lastWhy && $("whyBars")) Charts.bars($("whyBars"), S.lastWhy, { label: "Change in the estimate attributed to each factor" });
+    if (S.lastWhy && $("whyBars")) Charts.bars($("whyBars"), S.lastWhy, { label: "Estimated contribution of each factor to the change" });
   }
 
   function renderWhy(r, ch) {
     if (!ch.length) { $("whyPanel").innerHTML = ""; S.lastWhy = null; return; }
-    S.lastWhy = r.inputs.map((i) => ({ name: `${NAMES[i.variable]}${Math.abs(i.change) > 1e-9 ? ` ${pts(i.change)}` : ""}`, value: i.contribution, muted: !i.in_model,
+    S.lastWhy = r.inputs.map((i) => ({ name: NAMES[i.variable], value: i.contribution, muted: !i.in_model,
+      flag: i.variable === "fruit_veg" && Math.abs(i.change) > 1e-9 && !!signIssue("fruit_veg"),
       text: !i.in_model ? "not in model" : Math.abs(i.change) > 1e-9 ? signed(i.contribution, 1) : "unchanged" }));
-    if (!$("whyBars")) $("whyPanel").innerHTML = `<div class="section-h">What moves the estimate <span>change in deaths per 100,000</span></div><div id="whyBars"></div>`;
+    if (!$("whyBars")) $("whyPanel").innerHTML = `<div class="section-h">Estimated contribution to the change <span>deaths per 100,000</span></div><div id="whyBars"></div>`;
   }
 
   function renderPathway(p) {
@@ -449,61 +477,36 @@
     if (!p || !(S.price > 0)) { el.hidden = true; return; }
     el.hidden = false;
     const reg = p.regression_effect;
-    el.innerHTML = `<div class="section-h">How the price rise reaches the estimate</div>
-      <ol class="steps">
-        <li><span class="k">Cigarette price</span><span class="v">+${fmt(p.price_increase_pct, 0)}%</span><span class="n">your scenario</span></li>
-        <li class="a"><span class="k">Share who smoke</span><span class="v">${signed(p.prevalence_change_pct, 1)}%</span><span class="n">assumed${p.prevalence_elasticity === 0 ? ", no response" : `, elasticity ${fmt(p.prevalence_elasticity, 2)}`}</span></li>
-        <li><span class="k">Smoking prevalence</span><span class="v">${p.smoking_base == null ? "–" : `${fmt(p.smoking_new, 1)}%`}</span><span class="n">${p.smoking_base == null ? "not in this model" : `from ${fmt(p.smoking_base, 1)}%, ${pts(p.smoking_change_points)}`}</span></li>
-        <li class="o"><span class="k">Estimated death rate</span><span class="v">${reg ? signed(reg.delta, 1) : "–"}</span><span class="n">${reg ? `95% CI ${fmt(reg.ci_low, 1)} to ${fmt(reg.ci_high, 1)}` : "smoking not in model"}</span></li>
+    el.innerHTML = `<ol class="steps">
+        <li><span class="k">Price</span><span class="v">+${fmt(p.price_increase_pct, 0)}%</span><span class="n">your choice</span></li>
+        <li class="a"><span class="k">Share who smoke</span><span class="v">${signed(p.prevalence_change_pct, 1)}%</span><span class="n">assumed</span></li>
+        <li><span class="k">Smoking</span><span class="v">${p.smoking_base == null ? "–" : `${fmt(p.smoking_new, 1)}%`}</span><span class="n">${p.smoking_base == null ? "not in this model" : `from ${fmt(p.smoking_base, 1)}%`}</span></li>
+        <li class="o"><span class="k">Estimate</span><span class="v">${reg ? signed(reg.delta, 1) : "–"}</span><span class="n">${reg ? `range ${signed(reg.ci_low, 1)} to ${signed(reg.ci_high, 1)}` : "smoking not in model"}</span></li>
       </ol>
-      <p class="demand">For reference, cigarette consumption would fall about <b>${fmt(Math.abs(p.demand_change_pct), 1)}%</b> (demand elasticity −0.4; Bader, Boisclair &amp; Ferrence, 2011). Fewer cigarettes is not the same as fewer smokers, so this figure does not enter the model.</p>`;
-  }
-
-  function renderCertainty(r) {
-    const mc = r.monte_carlo;
-    const row = (name, x) => `<tr><td class="term">${name}</td><td>${fmt(x.estimate, 1)}</td><td>${fmt(x.ci_low, 1)} to ${fmt(x.ci_high, 1)}</td><td>${fmt(x.pi_low, 1)} to ${fmt(x.pi_high, 1)}</td></tr>`;
-    const varyOK = S.price > 0;
-    $("certaintyBody").innerHTML = `
-      <p>The confidence interval reflects uncertainty in the fitted coefficients. The prediction interval is wider: it is where a single state’s rate would be expected to fall, given everything the four factors leave unexplained.</p>
-      <div class="table-scroll"><table class="data"><thead><tr><th></th><th>Estimate</th><th>95% CI</th><th>95% prediction</th></tr></thead>
-        <tbody>${row("Start", r.baseline)}${row("Scenario", r.scenario)}</tbody></table></div>
-      ${mc && mc.sd > 1e-12 ? `<p>Re-running the scenario with ${mc.draws.toLocaleString()} plausible sets of coefficients${mc.elasticity_range ? ` and a smoking response drawn between ${fmt(mc.elasticity_range[0], 2)} and ${fmt(mc.elasticity_range[1], 2)}` : ""}: the middle 95% of changes run from ${fmt(mc.quantiles.p2_5, 1)} to ${fmt(mc.quantiles.p97_5, 1)}, and ${fmt(mc.prob_decrease * 100, 1)}% are below zero.</p><div id="mcSvg"></div>` : `<p>No change from the start, so there is nothing to simulate.</p>`}
-      <label class="custom" style="justify-content:flex-start;gap:10px;font-size:14px"><input type="checkbox" id="varyE" ${S.varyE ? "checked" : ""} ${varyOK ? "" : "disabled"}>Also vary the assumed smoking response from 0 to −0.40${varyOK ? "" : " (needs a price rise)"}</label>`;
-    if (mc && mc.sd > 1e-12) Charts.histogram($("mcSvg"), mc);
-    $("varyE").addEventListener("change", (e) => { S.varyE = e.target.checked; runNow(); });
-  }
-
-  /* ---------------------------------------------------------------- compare */
-  function scenarioName() {
-    if (S.preset?.startsWith("state:")) return `${stateName(S.preset.slice(6))}’s factors`;
-    const ch = changes(S.last).filter((i) => !(S.price > 0 && i.variable === "smoking" && Math.abs(S.inputs.smoking - S.baseline.smoking) < 1e-9))
-      .map((i) => `${NAMES[i.variable]} ${pts(i.change)}`);
-    if (S.price > 0) ch.unshift(`Price +${fmt(S.price, 0)}%`);
-    return ch.join(", ") || "Start";
-  }
-  function pinScenario() {
-    if (!S.last || S.pins.length >= 4) return;
-    S.pins.push({ name: scenarioName(), estimate: S.last.scenario.estimate, delta: S.last.difference.delta,
-      snap: { inputs: { ...S.inputs }, price: S.price, response: S.response, elas: S.elas, preset: S.preset, baselineState: S.baselineState } });
-    renderPins(); drawCharts(); $("pinBtn").disabled = S.pins.length >= 4;
-  }
-  function renderPins() {
-    $("pins").innerHTML = S.pins.map((p, i) => `<li><span class="pn">${i + 1}</span>
-      <button class="restore" type="button" data-i="${i}" title="Restore: ${esc(p.name)}">${esc(p.name)}</button>
-      <span class="pv">${fmt(p.estimate, 1)} <span style="color:var(--ink-3);font-weight:500">${signed(p.delta, 1)}</span></span>
-      <button class="rm" type="button" data-rm="${i}" aria-label="Remove kept scenario ${i + 1}"><svg aria-hidden="true"><use href="#i-x"/></svg></button></li>`).join("");
-    $("pins").querySelectorAll(".restore").forEach((b) => b.addEventListener("click", async () => {
-      const s = S.pins[+b.dataset.i].snap;
-      if (s.baselineState !== S.baselineState) await setBaseline(s.baselineState, false);
-      Object.assign(S, { inputs: { ...s.inputs }, price: s.price, response: s.response, elas: s.elas, preset: s.preset });
-      writeInputs(); paintPresets(); runNow();
-    }));
-    $("pins").querySelectorAll(".rm").forEach((b) => b.addEventListener("click", () => { S.pins.splice(+b.dataset.rm, 1); renderPins(); drawCharts(); $("pinBtn").disabled = false; }));
+      <p class="demand">Published research: a ${fmt(p.price_increase_pct, 0)}% price rise cuts cigarettes bought by about <b>${fmt(Math.abs(p.demand_change_pct), 1)}%</b> (Bader, Boisclair &amp; Ferrence, 2011). Buying fewer cigarettes is not the same as fewer people smoking, so this figure is not used in the model.</p>`;
   }
 
   function setupMini() {
     const mini = $("mini");
     new IntersectionObserver((en) => { mini.classList.toggle("show", !en[0].isIntersecting && !$("simulate").hidden); }, { rootMargin: "-60px 0px 0px 0px" }).observe($("headline"));
+  }
+
+  /* Uncertainty of the current scenario: shown on the Model evidence page, not in the simulator. */
+  function renderCertainty(r) {
+    const host = $("m-unc-body"); if (!host) return;
+    if (!r) { host.innerHTML = `<p>Build a scenario in the <a href="#/simulate">simulator</a> to see its uncertainty here.</p>`; return; }
+    const mc = r.monte_carlo;
+    const row = (name, x) => `<tr><td class="term">${name}</td><td>${fmt(x.estimate, 1)}</td><td>${fmt(x.ci_low, 1)} to ${fmt(x.ci_high, 1)}</td><td>${fmt(x.pi_low, 1)} to ${fmt(x.pi_high, 1)}</td></tr>`;
+    const varyOK = S.price > 0;
+    host.innerHTML = `
+      <p class="lead">The simulator’s “uncertainty range” is the 95% confidence interval: it reflects uncertainty in the fitted coefficients. The prediction interval is wider: it is where a single state’s rate would be expected to fall, given everything the four factors leave unexplained.</p>
+      <div class="table-scroll"><table class="data"><thead><tr><th></th><th>Estimate</th><th>95% CI</th><th>95% prediction interval</th></tr></thead>
+        <tbody>${row("Starting point", r.baseline)}${row("Your scenario", r.scenario)}</tbody></table></div>
+      <h3>Monte Carlo</h3>
+      ${mc && mc.sd > 1e-12 ? `<p>Re-running the scenario with ${mc.draws.toLocaleString()} plausible sets of coefficients${mc.elasticity_range ? ` and a smoking response drawn between ${fmt(mc.elasticity_range[0], 2)} and ${fmt(mc.elasticity_range[1], 2)}` : ""}: the middle 95% of changes run from ${fmt(mc.quantiles.p2_5, 1)} to ${fmt(mc.quantiles.p97_5, 1)}, and ${fmt(mc.prob_decrease * 100, 1)}% are below zero.</p><div id="mcSvg"></div>` : `<p>The scenario equals the starting point, so there is no change to simulate.</p>`}
+      <label class="custom" style="justify-content:flex-start;gap:10px;font-size:14px"><input type="checkbox" id="varyE" ${S.varyE ? "checked" : ""} ${varyOK ? "" : "disabled"}>Also vary the assumed smoking response from 0 to −0.40${varyOK ? "" : " (needs a cigarette price rise in the simulator)"}</label>`;
+    if (mc && mc.sd > 1e-12) Charts.histogram($("mcSvg"), mc);
+    $("varyE").addEventListener("change", async (e) => { S.varyE = e.target.checked; await runNow(); renderCertainty(S.last); });
   }
 
   /* ---------------------------------------------------------------- shared: on-page index */
@@ -530,6 +533,7 @@
     }
     if (!S.sens) S.sens = await api(`/api/sensitivity?model=${S.modelName}&state=${encodeURIComponent(S.baselineState)}`);
     if (!modelBuilt) { buildModelView(); modelBuilt = true; } else drawModelCharts();
+    renderCertainty(S.last);
     if (S.gotoAfter) { const id = S.gotoAfter; S.gotoAfter = null; requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" })); }
   }
 
@@ -564,6 +568,8 @@
         </dl>
         ${models.length > 1 ? `<p class="foot"><label for="modelSelect">Model </label><select id="modelSelect">${models.map((k) => `<option value="${k}"${k === S.modelName ? " selected" : ""}>${k === "full" ? "Full, 4 predictors" : `Reduced, ${S.model.models[k].predictors.length} predictors`}</option>`).join("")}</select></p>` : ""}
       </section>
+
+      <section class="doc-sec" id="m-unc"><h2>Uncertainty in your scenario</h2><div id="m-unc-body"></div></section>
 
       <section class="doc-sec" id="m-coef"><h2>Coefficients</h2>
         <p class="lead">Each estimate is the change in the death rate (per 100,000) that goes with a one-point rise in that factor, holding the other three fixed. These are associations across states, not causal effects.</p>
@@ -636,7 +642,7 @@
         <h3>Price rise against assumed smoking response</h3><div id="gridChart"></div>
         <p class="foot">Each line is one assumed prevalence elasticity, from none to −0.40. All of them are assumptions; none is a measured value.</p>
       </section>`;
-    toc("modelToc", [["m-brief", "In brief"], ["m-coef", "Coefficients"], ["m-fit", "How well it predicts"], ["m-checks", "Checks on the assumptions"], ["m-infl", "Influential states"], ["m-select", "Model selection"], ["m-sens", "Sensitivity"]]);
+    toc("modelToc", [["m-brief", "In brief"], ["m-unc", "Your scenario"], ["m-coef", "Coefficients"], ["m-fit", "How well it predicts"], ["m-checks", "Checks on the assumptions"], ["m-infl", "Influential states"], ["m-select", "Model selection"], ["m-sens", "Sensitivity"]]);
     $("modelSelect")?.addEventListener("change", async (e) => { S.modelName = e.target.value; S.sens = null; modelBuilt = false; await renderModelView(); if (S.last) runNow(); });
     drawModelCharts();
   }
@@ -651,21 +657,18 @@
   let methodsBuilt = false;
   function renderMethodsView() {
     if (methodsBuilt) return; methodsBuilt = true;
-    const st = S.status, d = st.dataset, src = st.source || {}, meta = d?.file_metadata || {};
+    const st = S.status, d = st.dataset, src = st.source || {};
     const vars = ["heart_disease", ...PREDICTORS];
     $("methodsBody").innerHTML = `
-      <section class="doc-sec" id="x-what"><h2>What Heartlab estimates</h2>
+      <section class="doc-sec" id="x-what"><h2>What HEARTLAB estimates</h2>
         <p class="lead">A multiple linear regression across U.S. jurisdictions: the age-adjusted coronary heart disease death rate among adults aged 35 and over, regressed on four behavioural risk factors measured in the same states.</p>
         <div class="eq">${esc(st.specification.equation)}</div>
         <p style="margin-top:14px">A scenario changes one or more factor values and asks what the fitted equation gives for them. The difference from the start is the scenario’s change, with a 95% confidence interval from the coefficients’ estimated uncertainty. The model follows Gordon &amp; Guilfoos (2017), Chapter 14, §14.3.6.</p>
       </section>
 
       <section class="doc-sec" id="x-data"><h2>Data</h2>
-        ${d ? `<p class="lead"><code>${esc(d.file)}</code>: ${d.observations} jurisdictions (50 states${d.includes_dc ? " and the District of Columbia" : ""}), ${d.complete_cases} complete, ${d.excluded_rows.length} excluded.
-          ${meta.risk_factor_year ? `Risk factors: ${esc(meta.risk_factor_year.join(", "))}. ` : ""}${meta.outcome_year ? `Outcome: ${esc(meta.outcome_year.join(", "))}.` : ""}</p>
-        ${src.provenance ? `<div class="callout"><b>Reconstructed dataset.</b> ${esc(src.provenance)}</div>` : ""}
-        <div class="table-scroll"><table class="data"><thead><tr><th>Variable</th><th>Unit</th><th>Definition</th><th>Source column</th></tr></thead><tbody>
-          ${vars.map((k) => `<tr><td class="term">${esc(k === "heart_disease" ? "CHD death rate" : LONG[k])}</td><td style="text-align:left">${esc(V(k).unit || "–")}</td><td class="wrap">${esc(V(k).definition || "–")}</td><td style="text-align:left"><code>${esc(d.column_mapping[k])}</code></td></tr>`).join("")}
+        ${d ? `<div class="table-scroll"><table class="data text"><thead><tr><th>Variable</th><th>Unit</th><th>Definition</th></tr></thead><tbody>
+          ${vars.map((k) => `<tr><td class="term">${esc(k === "heart_disease" ? "CHD death rate" : LONG[k])}</td><td style="text-align:left">${esc(V(k).unit || "–")}</td><td class="wrap">${esc(V(k).definition || "–")}</td></tr>`).join("")}
         </tbody></table></div>
         ${src.year_note ? `<p class="foot">${esc(src.year_note)}</p>` : ""}` : `<p class="lead">No dataset is loaded.</p>`}
         <details style="margin-top:18px"${st.ready ? "" : " open"}><summary>${st.ready ? "Load a different dataset" : "Load the dataset"}</summary><div id="methodsUpload"></div></details>
@@ -719,7 +722,7 @@
       <div class="upload" id="drop">
         <span class="ico"><svg aria-hidden="true"><use href="#i-upload"/></svg></span>
         <h2>${primary ? "Load the dataset" : "Replace the dataset"}</h2>
-        <p>Drop the state-level CDC file here, or choose it. Heartlab checks the columns, fits the model and opens the simulator.</p>
+        <p>Drop the state-level CDC file here, or choose it. HEARTLAB checks the columns, fits the model and opens the simulator.</p>
         <label class="btn-solid" for="fileInput">Choose file</label>
         <input type="file" id="fileInput" accept=".csv,.xls,.xlsx">
         <p class="types">.csv, .xls or .xlsx, up to 10 MB</p>
@@ -754,23 +757,14 @@
     paintThemeButton();
     $("themeBtn").addEventListener("click", toggleTheme);
     S.status = await api("/api/status");
-    if (S.status.ready) {
-      [S.model, S.data] = await Promise.all([api("/api/model"), api("/api/states")]);
-      const b = await api("/api/baseline?state=mean");
-      S.tryBase = b.inputs; S.tryInputs = { ...b.inputs };
-    }
+    if (S.status.ready) [S.model, S.data] = await Promise.all([api("/api/model"), api("/api/states")]);
     $("syntheticBanner").hidden = !(S.status.ready && S.status.dataset.synthetic);
-    buildTry();
-    $("enterBtn").addEventListener("click", () => {
-      if (!S.status.ready) return;
-      const moved = PREDICTORS.some((q) => Math.abs(S.tryInputs[q] - S.tryBase[q]) > 1e-9);
-      try { if (moved) sessionStorage.setItem("heartlab-carry", JSON.stringify(S.tryInputs)); } catch (e) { /* carry-over is optional */ }
-    });
+    document.querySelectorAll("[data-goto]").forEach((a) => a.addEventListener("click", () => { S.gotoAfter = a.dataset.goto; }));
     window.addEventListener("hashchange", route);
     window.addEventListener("resize", debounce(() => { drawCharts(); drawModelCharts(); }, 150));
     route();
   }
   boot().catch((e) => {
-    document.body.insertAdjacentHTML("afterbegin", `<p class="banner">The Heartlab backend is not responding (${esc(e.message)}). Start it with ./run.sh.</p>`);
+    document.body.insertAdjacentHTML("afterbegin", `<p class="banner">The HEARTLAB backend is not responding (${esc(e.message)}). Start it with ./run.sh.</p>`);
   });
 })();

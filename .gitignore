@@ -4,3 +4,14 @@ __pycache__/
 *.pyc
 .DS_Store
 .impeccable/
+
+# local environments and tool caches
+.env
+.env.*
+.idea/
+.vscode/
+*.log
+.coverage
+htmlcov/
+# datasets uploaded through the interface stay local unless deliberately committed
+data/raw/uploaded_dataset.*

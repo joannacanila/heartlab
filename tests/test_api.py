@@ -43,8 +43,10 @@ def state_b(monkeypatch, tmp_path):
 
 def test_frontend_served(state_a):
     r = state_a.get("/")
-    assert r.status_code == 200 and "Heartlab" in r.text
-    for asset in ["app.js", "charts.js", "heart.js", "styles.css"]:
+    assert r.status_code == 200 and "HEARTLAB" in r.text
+    for icon in ("/favicon.ico", "/apple-touch-icon.png", "/static/icons/favicon-32.png", "/static/site.webmanifest"):
+        assert state_a.get(icon).status_code == 200, icon
+    for asset in ["app.js", "charts.js", "heart.js", "field.js", "styles.css"]:
         assert state_a.get(f"/static/{asset}").status_code == 200
 
 

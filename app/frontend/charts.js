@@ -1,4 +1,4 @@
-/* Heartlab charts: small SVG renderers. They only draw numbers returned by the Python backend.
+/* HEARTLAB charts: small SVG renderers. They only draw numbers returned by the Python backend.
    Colours come from CSS custom properties, so every chart follows the light/dark theme. */
 (function () {
   const v = (name) => `var(--${name})`;
@@ -20,58 +20,70 @@
   const wrap = (svg, desc) => `<div class="chart">${svg}</div>${desc ? `<p class="sr-only">${esc(desc)}</p>` : ""}`;
   const st = (o) => `style="${Object.entries(o).map(([k, x]) => `${k}:${x}`).join(";")}"`;
 
-  /* The headline chart: every jurisdiction's observed rate as a dot, the starting estimate, the scenario estimate with its
-     95% confidence interval, and any kept scenarios. One axis, in the outcome's own units. */
+  /* The headline chart: every jurisdiction's observed rate as a dot, the starting estimate, and the scenario estimate with
+     its 95% confidence interval. The axis always widens to include the scenario; values beyond the observed states are
+     shaded and labelled rather than clipped. */
   function range(el, o) {
-    const w = W(el, 300, 900), H = 118, padL = 10, padR = 10, axisY = 64;
-    const all = [...o.states.map((s) => s.rate), o.baseline, o.scenario.estimate, o.scenario.ci_low, o.scenario.ci_high, ...o.pins.map((p) => p.estimate)];
+    const w = W(el, 300, 900), H = 150, padL = 10, padR = 10, axisY = 88;
+    const rates = o.states.map((s) => s.rate), obsLo = Math.min(...rates), obsHi = Math.max(...rates);
+    const all = [...rates, o.baseline, o.scenario.estimate, o.scenario.ci_low, o.scenario.ci_high];
     let lo = Math.min(...all), hi = Math.max(...all); const pad = (hi - lo) * .04; lo -= pad; hi += pad;
     const x = scale(lo, hi, padL, w - padR);
     let s = `<svg viewBox="0 0 ${w} ${H}" role="img" aria-label="${esc(o.label)}">`;
+    s += `<defs><pattern id="outHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" ${st({ stroke: v("line-2"), "stroke-width": 1.2 })}/></pattern></defs>`;
+    const sLo = Math.min(o.baseline, o.scenario.estimate), sHi = Math.max(o.baseline, o.scenario.estimate);
+    const outZones = [];
+    if (sLo < obsLo) outZones.push([padL, x(obsLo)]);
+    if (sHi > obsHi) outZones.push([x(obsHi), w - padR]);
+    outZones.forEach(([a, b]) => {
+      s += `<rect x="${a}" y="${axisY - 16}" width="${Math.max(0, b - a)}" height="30" ${st({ fill: "url(#outHatch)" })}/>`;
+    });
     niceTicks(lo, hi, Math.max(3, Math.floor(w / 110))).forEach((t) => {
-      s += `<line x1="${x(t)}" x2="${x(t)}" y1="${axisY + 14}" y2="${axisY + 18}" ${st({ stroke: v("line-2") })}/><text x="${x(t)}" y="${H - 4}" text-anchor="middle">${tickFmt(t)}</text>`;
+      s += `<line x1="${x(t)}" x2="${x(t)}" y1="${axisY + 14}" y2="${axisY + 18}" ${st({ stroke: v("line-2") })}/><text x="${x(t)}" y="${axisY + 32}" text-anchor="middle">${tickFmt(t)}</text>`;
     });
     s += `<line x1="${padL}" x2="${w - padR}" y1="${axisY + 14}" y2="${axisY + 14}" ${st({ stroke: v("line-2") })}/>`;
     o.states.slice().sort((a, b) => a.rate - b.rate).forEach((d, i) => {
-      s += `<circle cx="${x(d.rate)}" cy="${axisY + (i % 2 ? 3 : -3)}" r="3.4" ${st({ fill: v("dot") })}><title>${esc(d.name)}: observed ${fmt(d.rate, 1)}</title></circle>`;
-    });
-    o.pins.forEach((p, i) => {
-      s += `<circle cx="${x(p.estimate)}" cy="${axisY}" r="8" ${st({ fill: v("bg"), stroke: v("ink-2"), "stroke-width": 1.5 })}/>` +
-        `<text x="${x(p.estimate)}" y="${axisY + 4}" text-anchor="middle" ${st({ fill: v("ink"), "font-size": "11px", "font-weight": 700 })}>${i + 1}</text>`;
+      s += `<circle cx="${x(d.rate)}" cy="${axisY + (i % 2 ? 3 : -3)}" r="3.4" ${st({ fill: v("dot") })}><title>${esc(d.name)}: ${fmt(d.rate, 1)} in 1998</title></circle>`;
     });
     const xb = x(o.baseline), xs = x(o.scenario.estimate);
-    s += `<line x1="${xb}" x2="${xb}" y1="${axisY - 30}" y2="${axisY + 12}" ${st({ stroke: v("base"), "stroke-width": 2.5 })}/>`;
-    s += `<rect x="${x(o.scenario.ci_low)}" y="${axisY - 6}" width="${Math.max(2, x(o.scenario.ci_high) - x(o.scenario.ci_low))}" height="12" rx="6" ${st({ fill: v("accent"), "fill-opacity": .22 })}/>`;
-    if (Math.abs(xs - xb) > 14) {
-      const dir = xs < xb ? -1 : 1;
-      s += `<path d="M${xb + dir * 4},${axisY - 22} L${xs - dir * 6},${axisY - 22}" ${st({ stroke: v("accent"), "stroke-width": 1.5, fill: "none" })}/>` +
-        `<path d="M${xs - dir * 6},${axisY - 26} L${xs - dir * 1},${axisY - 22} L${xs - dir * 6},${axisY - 18}" ${st({ stroke: v("accent"), "stroke-width": 1.5, fill: "none", "stroke-linejoin": "round" })}/>`;
-    }
+    s += `<line x1="${xb}" x2="${xb}" y1="${axisY - 26}" y2="${axisY + 12}" ${st({ stroke: v("base"), "stroke-width": 2.5 })}/>`;
+    s += `<rect x="${x(o.scenario.ci_low)}" y="${axisY - 6}" width="${Math.max(2, x(o.scenario.ci_high) - x(o.scenario.ci_low))}" height="12" rx="6" ${st({ fill: v("accent"), "fill-opacity": .2 })}/>`;
     s += `<circle cx="${xs}" cy="${axisY}" r="7" ${st({ fill: v("accent"), stroke: v("bg"), "stroke-width": 2 })}/>`;
+    /* Labels: one row when they fit side by side; otherwise the scenario label moves up a row. */
+    const clampX = (xx) => Math.min(w - 4, Math.max(4, xx));
+    const lab = (xx, y, anchor, fill, t) => `<text x="${clampX(xx)}" y="${y}" text-anchor="${anchor}" ${st({ fill, "font-weight": 650, "font-size": "13px" })}>${t}</text>`;
+    const anchorAt = (xx) => (xx < 90 ? "start" : xx > w - 90 ? "end" : "middle");
     if (Math.abs(xs - xb) < 2) {
-      s += `<text x="${Math.min(w - 90, Math.max(90, xb))}" y="${axisY - 36}" text-anchor="middle" ${st({ fill: v("ink-2"), "font-weight": 650, "font-size": "13px" })}>Scenario = start, ${fmt(o.baseline, 1)}</text>`;
+      s += lab(xb, axisY - 34, anchorAt(xb), v("ink-2"), `Same as the starting point, ${fmt(o.baseline, 1)}`);
     } else {
-      const left = xs < xb;
-      const lab = (xx, anchor, fill, t) => `<text x="${Math.min(w - 4, Math.max(4, xx + (anchor === "start" ? 6 : -6)))}" y="${axisY - 36}" text-anchor="${anchor}" ${st({ fill, "font-weight": 650, "font-size": "13px" })}>${t}</text>`;
-      s += lab(xb, left ? "start" : "end", v("base"), `Start ${fmt(o.baseline, 1)}`);
-      s += lab(xs, left ? "end" : "start", v("accent"), `Scenario ${fmt(o.scenario.estimate, 1)}`);
+      const left = xs < xb, tight = Math.abs(xs - xb) < 130;
+      s += lab(xb + (left ? 6 : -6), axisY - 34, left ? "start" : "end", v("base"), `Starting point ${fmt(o.baseline, 1)}`);
+      s += lab(xs + (tight ? 0 : left ? -8 : 8), tight ? axisY - 56 : axisY - 34, tight ? anchorAt(xs) : left ? "end" : "start", v("accent"), `Your scenario ${fmt(o.scenario.estimate, 1)}`);
+    }
+    if (outZones.length) {
+      const [a, b] = outZones.reduce((m, z) => (z[1] - z[0] > m[1] - m[0] ? z : m));
+      s += `<text x="${Math.min(w - 4, Math.max(4, (a + b) / 2))}" y="${H - 2}" text-anchor="${(a + b) / 2 < 120 ? "start" : (a + b) / 2 > w - 120 ? "end" : "middle"}" ${st({ fill: v("ink-3"), "font-size": "12px", "font-style": "italic" })}>${b - a > 150 ? "outside the historical state data" : "outside"}</text>`;
     }
     el.innerHTML = wrap(s + `</svg>`);
   }
 
-  /* Horizontal bars: change in the estimate attributed to each factor. */
+  /* Horizontal bars: change in the estimate attributed to each factor (coefficient × change). */
   function bars(el, items, opts = {}) {
-    const w = W(el, 280, 900), rowH = 32, padL = Math.min(180, w * .38), padR = 70, H = items.length * rowH + 4;
+    const w = W(el, 280, 900), rowH = 34, top = 20, padL = Math.min(190, w * .4), padR = 88, H = items.length * rowH + top + 2;
     const m = Math.max(1e-9, ...items.map((d) => Math.abs(d.value)));
     const x = scale(-m, m, padL, w - padR);
     let s = `<svg viewBox="0 0 ${w} ${H}" role="img" aria-label="${esc(opts.label || "bar chart")}">`;
-    s += `<line x1="${x(0)}" x2="${x(0)}" y1="0" y2="${H}" ${st({ stroke: v("line-2") })}/>`;
+    s += `<defs><pattern id="flagHatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" ${st({ stroke: v("amber-line"), "stroke-width": 2 })}/></pattern></defs>`;
+    s += `<text x="${x(0) - 6}" y="12" text-anchor="end" ${st({ "font-size": "12px" })}>← lowers</text><text x="${x(0) + 6}" y="12" ${st({ "font-size": "12px" })}>raises →</text>`;
+    s += `<line x1="${x(0)}" x2="${x(0)}" y1="${top - 2}" y2="${H}" ${st({ stroke: v("line-2") })}/>`;
     items.forEach((d, i) => {
-      const y = i * rowH, x0 = x(Math.min(0, d.value)), bw = Math.abs(x(d.value) - x(0));
-      const fill = d.muted ? v("line") : v("ink-2");
-      s += `<text class="lab" x="0" y="${y + 20}">${esc(d.name)}</text>`;
-      if (Math.abs(d.value) > 1e-9) s += `<rect x="${x0}" y="${y + 8}" width="${Math.max(bw, 2)}" height="16" rx="3" ${st({ fill })}/>`;
-      s += `<text class="val" x="${w}" y="${y + 20}" text-anchor="end" ${Math.abs(d.value) > 1e-9 ? "" : st({ fill: v("ink-3"), "font-weight": 500 })}>${esc(d.text ?? signed(d.value, 1))}</text>`;
+      const y = top + i * rowH, x0 = x(Math.min(0, d.value)), bw = Math.abs(x(d.value) - x(0));
+      const on = Math.abs(d.value) > 1e-9;
+      const fill = d.muted ? v("line") : d.flag ? "url(#flagHatch)" : v("ink-2");
+      s += `<text class="lab" x="0" y="${y + 21}" ${on ? "" : st({ fill: v("ink-3"), "font-weight": 500 })}>${esc(d.name)}</text>`;
+      if (on) s += `<rect x="${x0}" y="${y + 9}" width="${Math.max(bw, 2)}" height="16" rx="3" ${st({ fill, ...(d.flag ? { stroke: v("amber-line"), "stroke-width": 1.2 } : {}) })}/>`;
+      else s += `<circle cx="${x(0)}" cy="${y + 17}" r="3" ${st({ fill: v("bg"), stroke: v("line-2"), "stroke-width": 1.5 })}/>`;
+      s += `<text class="val" x="${w}" y="${y + 21}" text-anchor="end" ${on ? "" : st({ fill: v("ink-3"), "font-weight": 500 })}>${esc(d.text ?? signed(d.value, 1))}</text>`;
     });
     el.innerHTML = wrap(s + `</svg>`);
   }
@@ -79,7 +91,7 @@
   /* Histogram of Monte Carlo draws of the change. */
   function histogram(el, mc) {
     if (!(mc.sd > 1e-12)) { el.innerHTML = ""; return; }
-    const w = W(el, 260, 560), H = 140, padB = 22, padT = 20;
+    const w = W(el, 260, 900), H = 160, padB = 22, padT = 20;
     const { counts, edges } = mc.histogram, q = mc.quantiles;
     const x = scale(edges[0], edges[edges.length - 1], 6, w - 6);
     const y = scale(0, Math.max(...counts), H - padB, padT);

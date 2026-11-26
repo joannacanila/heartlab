@@ -3,14 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Heartlab</title>
-  <meta name="description" content="Heartlab: an interactive regression model of how smoking, obesity, physical inactivity and diet relate to coronary heart disease death rates across U.S. states.">
+  <title>HEARTLAB</title>
+  <meta name="description" content="HEARTLAB: an interactive regression model of how smoking, obesity, physical inactivity and diet relate to coronary heart disease death rates across U.S. states.">
   <meta name="color-scheme" content="light dark">
   <script>
     /* Apply the saved theme before first paint; with no saved choice the OS preference applies. */
     (function () { try { var t = localStorage.getItem("heartlab-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {} })();
   </script>
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
   <link rel="icon" href="/static/mark.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/icons/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/static/site.webmanifest">
+  <meta name="theme-color" content="#0d0f16">
   <link rel="preload" href="/static/fonts/HankenGrotesk-Variable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
@@ -22,13 +27,10 @@
       <circle class="mark-point" cx="18" cy="7.4" r="3.1"/>
     </symbol>
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m0 0-5-5m5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5m0 0 5-5m-5 5 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4v3.5H8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.6A8 8 0 0 1 9.4 4.5a8 8 0 1 0 10.1 10.1Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
     <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7.9" r="1.15" fill="currentColor"/></symbol>
-    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
-    <symbol id="i-x" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
     <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3.5H7.5A1.5 1.5 0 0 0 6 5v14a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 18 19V7.5L14 3.5Zm0 0V7.5h4M9 12.5h6M9 16h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -40,11 +42,11 @@
   </div>
 
   <header class="bar" id="bar">
-    <a class="brand" href="#/" aria-label="Heartlab home">
-      <svg class="brand-mark" aria-hidden="true"><use href="#mark"/></svg><span class="brand-word">Heartlab</span>
+    <a class="brand" href="#/" aria-label="HEARTLAB home">
+      <svg class="brand-mark" aria-hidden="true"><use href="#mark"/></svg><span class="brand-word">HEARTLAB</span>
     </a>
-    <nav class="nav" id="appNav" aria-label="Sections" hidden>
-      <a href="#/simulate" data-view="simulate">Simulate</a>
+    <nav class="nav" id="appNav" aria-label="Sections">
+      <a href="#/simulate" data-view="simulate">Simulator</a>
       <a href="#/model" data-view="model">Model evidence</a>
       <a href="#/methods" data-view="methods">Methods &amp; data</a>
     </nav>
@@ -56,103 +58,93 @@
 
   <main id="main">
     <!-- Landing ---------------------------------------------------------------------------- -->
-    <section class="view landing" id="landing" aria-labelledby="lHead">
-      <div class="l-copy">
-        <h1 id="lHead">What moves a state’s heart disease death rate?</h1>
-        <p class="l-lede">Heartlab fits a regression to 1998 CDC figures for all 50 states and DC, linking smoking, obesity, physical inactivity and diet to deaths from coronary heart disease. Change a factor and the model re-estimates the rate.</p>
-
-        <form class="try" id="tryForm" aria-labelledby="tryHead" novalidate>
-          <div class="try-head">
-            <h2 id="tryHead">Try it</h2>
-            <p class="try-out" aria-live="polite"><span class="try-num" id="tryEst">–</span><span class="try-unit">deaths per 100,000<span class="try-delta" id="tryDelta"></span></span></p>
-          </div>
-          <div class="try-rows" id="tryRows"></div>
-          <p class="try-note">Estimates from the fitted model for a state with these values. Starts at the average of 51 jurisdictions.</p>
-          <a class="enter" id="enterBtn" href="#/simulate"><span id="enterText">Open the simulator</span><svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
-        </form>
+    <section class="view landing deep" id="landing" aria-labelledby="lHead">
+      <!-- Background, back to front: a deep ground lit from the pointer, the engraved heart (illustration only),
+           and the 51 jurisdictions of the dataset plotted at their real values (smoking against the observed CHD
+           death rate). Hovering near a point names that jurisdiction. Nothing in the background is model output. -->
+      <div class="l-bg" aria-hidden="true">
+        <div class="l-glow"></div>
+        <div class="heart l-heart" id="heroHeart"><svg class="heart-fallback"><use href="#mark"/></svg></div>
+        <canvas class="l-field" id="field"></canvas>
       </div>
+      <p class="l-read" id="fieldRead" aria-hidden="true"></p>
 
-      <figure class="stage" id="stage">
-        <div class="heart" id="heroHeart" tabindex="0" role="img"
-             aria-label="Engraved illustration of a heart. The crimson level shows where the current model estimate falls between the lowest and highest observed state rates. Arrow keys turn it.">
-          <svg class="heart-fallback" aria-hidden="true"><use href="#mark"/></svg>
+      <div class="l-center">
+        <h1 class="l-word" id="lHead" aria-label="HEARTLAB">HEART<span>LAB</span></h1>
+        <div class="l-desc">
+          <p class="l-lede">Exploring how lifestyle risk factors relate to coronary heart disease deaths across U.S. states.</p>
+          <div class="disc" id="disc">
+            <button class="disc-btn" id="discBtn" type="button" aria-expanded="false" aria-controls="discPop" aria-label="About this tool: disclaimer">
+              <svg aria-hidden="true"><use href="#i-info"/></svg>
+            </button>
+            <div class="disc-pop" id="discPop" role="dialog" aria-label="Disclaimer">
+              <p>HEARTLAB is an educational modeling tool. It examines associations between lifestyle risk factors and coronary heart disease mortality across U.S. states, using historical state-level data and a multiple linear regression model.</p>
+              <p>Its results describe population-level statistical relationships, not an individual’s medical risk. Associations do not establish causation, and simulated estimates depend on the model’s assumptions and on the values entered.</p>
+              <p>It is not intended for medical diagnosis or treatment decisions.</p>
+            </div>
+          </div>
         </div>
-        <figcaption class="scale" id="stageScale" aria-hidden="true">
-          <span class="scale-lo" id="scaleLo"></span>
-          <span class="scale-track"><i id="scaleFill"></i></span>
-          <span class="scale-hi" id="scaleHi"></span>
-        </figcaption>
-        <p class="stage-note">Crimson level: the estimate’s place between the lowest and highest observed state rates. Illustration, not physiology.</p>
-      </figure>
+        <a class="enter" id="enterBtn" href="#/simulate"><span>Explore the simulator</span><svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </div>
     </section>
 
     <!-- Simulate --------------------------------------------------------------------------- -->
     <section class="view sim" id="simulate" aria-labelledby="simHead" hidden>
       <div class="sim-head">
-        <div>
-          <h1 id="simHead">Build a scenario</h1>
-          <p class="sub">Change risk factors and see how the model’s estimate of a state’s coronary heart disease death rate moves.</p>
-        </div>
+        <h1 id="simHead">Build a scenario</h1>
         <div class="start">
-          <label for="baselineSelect">Starting point</label>
+          <label for="baselineSelect"><span class="step-n" aria-hidden="true">1</span>Starting point</label>
           <select id="baselineSelect"></select>
         </div>
-      </div>
-
-      <div class="presets" role="group" aria-labelledby="presetHead">
-        <span id="presetHead" class="presets-label">Start from</span>
-        <div class="preset-list" id="presetList"></div>
       </div>
 
       <div class="sim-grid">
         <form class="controls" id="controls" aria-label="Scenario inputs" novalidate>
           <section class="ctl-group" aria-labelledby="factHead">
             <div class="ctl-group-head">
-              <h2 id="factHead">Risk factors</h2>
-              <button class="link" id="resetBtn" type="button"><svg aria-hidden="true"><use href="#i-reset"/></svg><span id="resetText">Reset to average</span></button>
+              <h2 id="factHead"><span class="step-n" aria-hidden="true">2</span>Adjust the risk factors</h2>
+              <div class="quick" role="group" aria-label="Quick scenarios">
+                <span class="quick-label">Try</span>
+                <span id="presetList"></span>
+                <button class="link" id="resetBtn" type="button"><svg aria-hidden="true"><use href="#i-reset"/></svg>Reset</button>
+              </div>
             </div>
             <div id="factorControls"></div>
           </section>
 
-          <section class="ctl-group price" aria-labelledby="priceHead">
-            <div class="ctl-group-head"><h2 id="priceHead">Cigarette price</h2></div>
-            <div class="factor" data-kind="price">
-              <div class="f-row">
-                <label for="priceNum">Price increase</label>
-                <span class="num"><input type="number" id="priceNum" min="0" max="100" step="1" value="0" inputmode="decimal"><span class="unit">%</span></span>
+          <details class="policy" id="policyBox">
+            <summary>Explore cigarette pricing policy</summary>
+            <div class="policy-body">
+              <p class="policy-intro">The model has no price in it, only the share of adults who smoke. A price rise reaches the estimate only through an assumption about how many smokers quit.</p>
+              <div class="factor" data-kind="price">
+                <div class="f-row"><label for="priceRange">Cigarette price rise</label><output class="f-val" id="priceOut" for="priceRange">0%</output></div>
+                <div class="slider"><input type="range" id="priceRange" min="0" max="100" step="1" value="0"></div>
               </div>
-              <input type="range" id="priceRange" min="0" max="100" step="1" value="0" aria-label="Cigarette price increase, percent">
+              <fieldset class="response" id="responseSet">
+                <legend>How much does smoking fall? <span class="assume">Your assumption</span></legend>
+                <div class="seg" id="responseSeg"></div>
+                <div class="custom" id="customRow" hidden>
+                  <label for="elasNum">Prevalence elasticity</label>
+                  <span class="num"><input type="number" id="elasNum" min="-1" max="0" step="0.05" value="-0.25" inputmode="decimal"></span>
+                </div>
+                <p class="hint" id="responseHint"></p>
+              </fieldset>
+              <div class="pathway" id="pathway" hidden></div>
             </div>
-            <fieldset class="response" id="responseSet">
-              <legend>If prices rise, how much does smoking fall? <span class="assume">Your assumption</span></legend>
-              <div class="seg" id="responseSeg"></div>
-              <div class="custom" id="customRow" hidden>
-                <label for="elasNum">Prevalence elasticity</label>
-                <span class="num"><input type="number" id="elasNum" min="-1" max="0" step="0.05" value="-0.25" inputmode="decimal"></span>
-              </div>
-              <p class="hint" id="responseHint"></p>
-            </fieldset>
-          </section>
+          </details>
           <p class="error" id="formError" role="alert" hidden></p>
         </form>
 
         <div class="outcome" id="outcome" aria-labelledby="outHead">
-          <h2 id="outHead" class="sr-only">Model estimate</h2>
+          <h2 id="outHead" class="out-h"><span class="step-n" aria-hidden="true">3</span>How the estimate changed</h2>
           <div class="headline" id="headline" aria-live="polite"></div>
           <div class="range" id="rangeChart"></div>
           <div class="why" id="whyPanel"></div>
-          <div class="pathway" id="pathway" hidden></div>
-          <div class="out-foot">
-            <details class="certainty" id="certainty">
-              <summary>How certain is this?</summary>
-              <div id="certaintyBody"></div>
-            </details>
-            <div class="compare" id="compare">
-              <button class="btn-quiet" id="pinBtn" type="button"><svg aria-hidden="true"><use href="#i-pin"/></svg>Keep for comparison</button>
-              <ol class="pins" id="pins"></ol>
-            </div>
-          </div>
           <ul class="warnings" id="warnings"></ul>
+          <details class="adv" id="advBox">
+            <summary>Statistical details</summary>
+            <div class="adv-body" id="advBody"></div>
+          </details>
         </div>
       </div>
 
@@ -180,6 +172,7 @@
   </main>
 
   <script src="/static/heart.js"></script>
+  <script src="/static/field.js"></script>
   <script src="/static/charts.js"></script>
   <script src="/static/app.js"></script>
 </body>

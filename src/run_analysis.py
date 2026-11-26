@@ -1,7 +1,7 @@
 """
 HEARTLAB analysis runner: produces every table and figure for the paper from the real dataset.
 
-    python -m src.run_analysis                      # uses data/raw/CDCHeartRisk.xls
+    python -m src.run_analysis                      # the dataset configured in config/column_mapping.json (data/raw/)
     python -m src.run_analysis path/to/file.xls     # explicit file
     python -m src.run_analysis FILE --out DIR       # write somewhere other than results/
 

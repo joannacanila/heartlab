@@ -16,10 +16,10 @@ HEARTLAB implements Gordon & Guilfoos (2017), Ch. 14 §14.3.6: a state-level mul
 Every number is computed by the Python backend from the real dataset; nothing is illustrative except the heart visual. The cigarette-price pathway separates the sourced demand elasticity (−0.4, Bader et al. 2011) from the user-set prevalence elasticity assumption.
 
 ## Constraints
-- Two screens only: landing page and simulation workspace. The landing page fits one desktop viewport.
+- Views: landing page, simulator, model evidence, methods & data. The landing page fits one viewport and holds no simulation controls.
 - No fabricated values. No causal or individual-level claims (ecological, state-level data).
 - At most two font families: one sans-serif and one monospace for numbers.
-- The heart illustration is the landing centerpiece and is illustrative, not physiological.
+- The landing background (lit ground, engraved heart, the 51 jurisdictions plotted from the data) is illustrative; the heart is not physiological and never reflects model output.
 - Must avoid a template or AI-assembled look; numbers must be easy to read from a projector.
 - Accessibility: semantic headings, labelled controls, keyboard focus, reduced motion.
 

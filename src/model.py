@@ -3,8 +3,9 @@ HEARTLAB statistical layer: the multiple linear regression of Section 14.3.6.
 
     Y_i = b0 + b1*X1_i + b2*X2_i + b3*X3_i + b4*X4_i + e_i
 
-Y  = state heart disease rate, X1 = smoking prevalence, X2 = obesity
-prevalence, X3 = physical inactivity, X4 = fruit and vegetable consumption.
+Y  = state CHD death rate, X1 = smoking prevalence, X2 = obesity
+prevalence, X3 = physical inactivity, X4 = share of adults eating fewer than
+five servings of fruit and vegetables a day (low intake).
 
 Estimation is ordinary least squares (statsmodels). The fitted object keeps
 everything needed for inference, diagnostics and prediction intervals.

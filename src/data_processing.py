@@ -1,6 +1,8 @@
 """
-HEARTLAB data layer: ingestion, validation and cleaning of the state-level
-CDC heart-disease risk-factor spreadsheet (CDCHeartRisk.xls).
+HEARTLAB data layer: ingestion, validation and cleaning of a state-level
+CDC heart-disease risk-factor file (.csv, .xls or .xlsx). The working dataset is
+data/raw/HEARTLAB_1998_CDC_CHD_dataset.csv; the textbook's CDCHeartRisk.xls layout
+(label rows, a total row) is also handled.
 
 Nothing in this module hardcodes column positions. Headers are located by
 inspecting the sheet, then mapped to model variables through

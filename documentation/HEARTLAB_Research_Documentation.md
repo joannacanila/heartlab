@@ -42,7 +42,7 @@ Heart disease remains a leading cause of death in the United States, and much of
 
 The assigned project, "Empirical Model of Heart Disease Risk Factors" (Gordon & Guilfoos, 2017, §14.3.6), answers this with an **empirical** model: rather than deriving equations from physiology, it fits a multiple linear regression to observed state-level data supplied by the Centers for Disease Control and Prevention (CDC) and uses the fitted equation to simulate scenarios **[Textbook]**. The central scenario is a cigarette-price increase, which is expected to reduce smoking and, through the fitted equation, the model-estimated heart disease rate **[Textbook]**.
 
-HEARTLAB implements this model in Python and wraps it in an interactive two-screen application so that the model, its assumptions and its outputs can be explored and demonstrated. The application is a teaching and analysis tool for a population-level statistical model. It is not a diagnostic tool and does not simulate an individual's heart.
+HEARTLAB implements this model in Python and wraps it in an interactive web application (a landing page, a simulator, and model-evidence and methods pages) so that the model, its assumptions and its outputs can be explored and demonstrated. The application is a teaching and analysis tool for a population-level statistical model. It is not a diagnostic tool and does not simulate an individual's heart.
 
 ## 2. Problem Statement and Research Objectives
 
@@ -238,6 +238,8 @@ Each risk factor is positively correlated with the CHD death rate on its own. Th
 
 ### 6.1 Architecture
 
+The full engineering reference (data pipeline, API, frontend, tests, configuration) is `docs/TECHNICAL_DOCUMENTATION.md` in the repository; this section summarises it for the paper.
+
 | Layer | Files | Responsibility |
 |---|---|---|
 | Data | `src/data_processing.py`, `config/column_mapping.json` | Excel/CSV import, header detection, column mapping, row classification, conversion, validation report |
@@ -247,7 +249,7 @@ Each risk factor is positively correlated with the CHD death rate on its own. Th
 | Verification/validation | `src/validation.py` | Analytic identity checks, LOOCV (PRESS), sign plausibility |
 | Orchestration | `src/engine.py`, `src/run_analysis.py` | State A/B logic; batch generation of all tables and figures |
 | Web backend | `app/backend/server.py` (FastAPI) | JSON API; the interface performs no statistical calculation |
-| Interface | `app/frontend/` (HTML/CSS/JavaScript, SVG charts) | Landing screen and simulation screen |
+| Interface | `app/frontend/` (HTML/CSS/JavaScript, SVG charts, WebGL and Canvas illustrations) | Landing page, simulator, model evidence, methods and data |
 
 Libraries: pandas, NumPy, SciPy, statsmodels, matplotlib, FastAPI. Exact versions are listed in `requirements.txt`.
 
@@ -261,7 +263,7 @@ Libraries: pandas, NumPy, SciPy, statsmodels, matplotlib, FastAPI. Exact version
 
 ### 6.3 Interfaces between the layers
 
-The browser sends inputs to `POST /api/simulate`. The backend validates them, computes all estimates and returns JSON, which the browser draws. Endpoints: `GET /api/status`, `GET /api/model`, `GET /api/baseline`, `POST /api/simulate`, `GET /api/sensitivity`, and `POST /api/dataset` (upload, validated before it is saved).
+The browser sends inputs to `POST /api/simulate`. The backend validates them, computes all estimates and returns JSON, which the browser draws. Endpoints: `GET /api/status`, `GET /api/model`, `GET /api/baseline`, `GET /api/states`, `POST /api/simulate`, `GET /api/sensitivity`, and `POST /api/dataset` (upload, validated before it is saved).
 
 ## 7. Simulation Design
 
@@ -392,7 +394,7 @@ Every table row records whether each value is observed (baseline), user-defined 
 | Residuals sum to zero (model has an intercept) | Within numerical tolerance |
 | Ŷ at the predictor means equals the mean of Y | Within numerical tolerance |
 
-**Automated test suite.** 104 tests passed and none were skipped on 26 November 2026 (`pytest`), including the real-data integration tests. The fixtures are **synthetic**: spreadsheets generated from a known linear model with a fixed seed and deliberately messy layout (title rows, a total row, a note row, missing cells, numbers written as text). They test the software only and are not CDC data. A loaded synthetic file is detected and flagged in the interface and the analysis runner, and is never written into `results/` or `data/raw/`.
+**Automated test suite.** 117 tests passed and none were skipped on 27 November 2026 (`pytest`), including the real-data integration tests. The fixtures are **synthetic**: spreadsheets generated from a known linear model with a fixed seed and deliberately messy layout (title rows, a total row, a note row, missing cells, numbers written as text). They test the software only and are not CDC data. A loaded synthetic file is detected and flagged in the interface and the analysis runner, and is never written into `results/` or `data/raw/`.
 
 | Area | What the tests establish |
 |---|---|
@@ -403,7 +405,7 @@ Every table row records whether each value is observed (baseline), user-defined 
 | Scenarios | Baseline gives zero difference; single-factor ΔŶ = β̂_j·Δx; simultaneous changes are additive; price flows into smoking (S·0.98 for 10% × −0.2); the reduced model ignores dropped variables; state baselines; reset; identical inputs give identical outputs, including the seeded Monte Carlo; the Monte Carlo mean and SD match the analytic ΔŶ and SE; extrapolation flagged |
 | Sensitivity | Tornado swing = 2·|β̂|·SD; grid size and labels; zero-elasticity rows are zero |
 | API | Frontend assets served; State A returns no regression output; State B returns model and simulation; outputs recomputed when inputs change; invalid requests return HTTP 422; bad uploads rejected; synthetic uploads not persisted |
-| Browser (headless Chromium) | Landing → workspace navigation; synthetic-data banner shown; changing a factor marks results stale and the re-run changes the estimate; simultaneous changes; reset returns the baseline estimate; pathway shows −8.0% demand and −6.0% prevalence for 20% × −0.3; invalid price shows an error; without a dataset the run button is disabled and only the upload component is shown; upload rejects a wrong file type and loads a valid file; keyboard-operable model tabs; no horizontal overflow at 390 px and a one-viewport landing |
+| Browser (headless Chromium) | Landing page (no simulation controls, one call to action, fits one viewport); disclaimer opens on hover, click and keyboard focus; synthetic-data banner shown; typed values stay in step with the sliders, and invalid or out-of-span values are refused with a message; each change updates the estimate to the backend's value; presets and state baselines; reset returns the baseline estimate; values outside the observed range are flagged, not clamped; pathway shows −8.0% demand and −6.0% prevalence for 20% × −0.3; without a dataset only the upload component is shown; upload rejects a wrong file type and loads a valid file; theme persists; keyboard operation and labelled controls; no horizontal overflow from 375 to 1440 px |
 | Real dataset | All five columns mapped by configured names; 50 states + DC, complete, nothing excluded; file years 1998; coefficients equal an independent NumPy least-squares solution; API in State B; price pathway arithmetic; browser shows the backend's estimate |
 
 ### 10.2 Validation (does the model describe the system?)
