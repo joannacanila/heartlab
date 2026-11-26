@@ -1,0 +1,1 @@
+Hanken Grotesk (Alfredo Marco Pradil, Hanken Design Co.) and Fragment Mono (Wei Huang) are licensed under the SIL Open Font License 1.1. Files downloaded from Google Fonts (fonts.gstatic.com, latin subset).

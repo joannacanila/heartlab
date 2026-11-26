@@ -1,0 +1,7 @@
+price_increase_pct,demand_elasticity,demand_change_pct,status
+5.0,-0.4,-2.0,sourced elasticity applied arithmetically (not a HEARTLAB fit)
+10.0,-0.4,-4.0,sourced elasticity applied arithmetically (not a HEARTLAB fit)
+15.0,-0.4,-6.0,sourced elasticity applied arithmetically (not a HEARTLAB fit)
+20.0,-0.4,-8.0,sourced elasticity applied arithmetically (not a HEARTLAB fit)
+25.0,-0.4,-10.0,sourced elasticity applied arithmetically (not a HEARTLAB fit)
+50.0,-0.4,-20.0,sourced elasticity applied arithmetically (not a HEARTLAB fit)

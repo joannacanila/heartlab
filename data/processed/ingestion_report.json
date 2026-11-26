@@ -1,0 +1,127 @@
+{
+  "source_file": "HEARTLAB_1998_CDC_CHD_dataset.csv",
+  "sheet_names": [
+    "csv"
+  ],
+  "sheet_used": "csv",
+  "header_row_index": 0,
+  "headers_found": [
+    "state",
+    "obesity_percent_bmi_ge_30",
+    "no_leisure_exercise_percent",
+    "less_than_5_fruit_vegetable_servings_percent",
+    "current_smoking_percent",
+    "coronary_heart_disease_age_adjusted_death_rate_per_100k_age_35_plus",
+    "risk_factor_year",
+    "outcome_year",
+    "outcome_definition",
+    "source_status"
+  ],
+  "column_mapping": {
+    "heart_disease": "coronary_heart_disease_age_adjusted_death_rate_per_100k_age_35_plus",
+    "smoking": "current_smoking_percent",
+    "obesity": "obesity_percent_bmi_ge_30",
+    "inactivity": "no_leisure_exercise_percent",
+    "fruit_veg": "less_than_5_fruit_vegetable_servings_percent",
+    "state": "state"
+  },
+  "mapping_method": {
+    "heart_disease": "known",
+    "smoking": "known",
+    "obesity": "known",
+    "inactivity": "known",
+    "fruit_veg": "known",
+    "state": "known"
+  },
+  "rows_scanned": 51,
+  "observations": 51,
+  "excluded_rows": [],
+  "invalid_values": [],
+  "missing_by_variable": {
+    "heart_disease": 0,
+    "smoking": 0,
+    "obesity": 0,
+    "inactivity": 0,
+    "fruit_veg": 0
+  },
+  "complete_cases": 51,
+  "states_included": [
+    "AL",
+    "AK",
+    "AZ",
+    "AR",
+    "CA",
+    "CO",
+    "CT",
+    "DE",
+    "DC",
+    "FL",
+    "GA",
+    "HI",
+    "ID",
+    "IL",
+    "IN",
+    "IA",
+    "KS",
+    "KY",
+    "LA",
+    "ME",
+    "MD",
+    "MA",
+    "MI",
+    "MN",
+    "MS",
+    "MO",
+    "MT",
+    "NE",
+    "NV",
+    "NH",
+    "NJ",
+    "NM",
+    "NY",
+    "NC",
+    "ND",
+    "OH",
+    "OK",
+    "OR",
+    "PA",
+    "RI",
+    "SC",
+    "SD",
+    "TN",
+    "TX",
+    "UT",
+    "VT",
+    "VA",
+    "WA",
+    "WV",
+    "WI",
+    "WY"
+  ],
+  "states_absent": [],
+  "includes_dc": true,
+  "value_scale": {
+    "heart_disease": "rate (source units)",
+    "smoking": "percent (0-100)",
+    "obesity": "percent (0-100)",
+    "inactivity": "percent (0-100)",
+    "fruit_veg": "percent (0-100)"
+  },
+  "warnings": [],
+  "synthetic": false,
+  "metadata_text": [],
+  "file_metadata": {
+    "risk_factor_year": [
+      "1998"
+    ],
+    "outcome_year": [
+      "1998"
+    ],
+    "outcome_definition": [
+      "Coronary heart disease mortality; ICD-9 410.0-414.9; age-adjusted, persons aged 35+, standardized to 2000 US population"
+    ],
+    "source_status": [
+      "assembled_from_separate_CDC_published_tables_not_original_CDCHeartRisk.xls"
+    ]
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "synthetic": false,
+  "dataset": "HEARTLAB_1998_CDC_CHD_dataset.csv",
+  "models": {
+    "full": {
+      "name": "full",
+      "predictors": [
+        "smoking",
+        "obesity",
+        "inactivity",
+        "fruit_veg"
+      ],
+      "n": 51,
+      "df_model": 4,
+      "df_resid": 46,
+      "r_squared": 0.4576039600206977,
+      "adj_r_squared": 0.4104390869790193,
+      "f_statistic": 9.70221969253101,
+      "f_p_value": 8.931338753459372e-06,
+      "rmse": 43.4376058215963,
+      "aic": 534.1445414081529,
+      "bic": 543.8036695717745,
+      "alpha": 0.05,
+      "significant_predictors": [
+        "smoking",
+        "obesity",
+        "inactivity",
+        "fruit_veg"
+      ],
+      "equation": "\u0176 = 219.9480 + 4.9395\u00b7smoking + 6.9770\u00b7obesity + 3.7023\u00b7inactivity - 3.3484\u00b7fruit_veg",
+      "validation": {
+        "press": 106979.24558034074,
+        "rmse_in_sample": 41.25339619473043,
+        "rmse_loocv": 45.79991557067754,
+        "mae_loocv": 35.51072867078001,
+        "predicted_r_squared": 0.3314614587067174
+      },
+      "diagnostics": {
+        "residual_mean": -6.074443780223601e-14,
+        "residual_std": 43.4376058215963,
+        "jarque_bera": {
+          "statistic": 2.2154741172918526,
+          "p_value": 0.3303055781335074,
+          "skew": 0.07024706208331352,
+          "kurtosis": 4.011354268429623
+        },
+        "shapiro_wilk": {
+          "statistic": 0.9832895302824695,
+          "p_value": 0.6847866937690424
+        },
+        "condition_number": 1616.4200333725705,
+        "vif": {
+          "smoking": 1.3633091210244108,
+          "obesity": 1.2582992203041337,
+          "inactivity": 1.4541351599191963,
+          "fruit_veg": 1.4635519441170048
+        },
+        "breusch_pagan": {
+          "lm": 0.7952698789970045,
+          "p_value": 0.9390810762358083,
+          "f": 0.18216617411193917,
+          "f_p_value": 0.9464998485344475
+        },
+        "white": {
+          "lm": 8.384661319908934,
+          "p_value": 0.8683393211479579
+        },
+        "thresholds": {
+          "cooks_d": 0.0784313725490196,
+          "leverage": 0.19607843137254902,
+          "studentized": 2.5
+        }
+      },
+      "verification_passed": true,
+      "sign_check": [
+        {
+          "variable": "smoking",
+          "estimate": 4.939509424941887,
+          "expected_sign": 1,
+          "observed_sign": 1,
+          "agrees": true,
+          "p_value": 0.046503340396697505
+        },
+        {
+          "variable": "obesity",
+          "estimate": 6.976979831165528,
+          "expected_sign": 1,
+          "observed_sign": 1,
+          "agrees": true,
+          "p_value": 0.014873942018044916
+        },
+        {
+          "variable": "inactivity",
+          "estimate": 3.7023422660869834,
+          "expected_sign": 1,
+          "observed_sign": 1,
+          "agrees": true,
+          "p_value": 0.000763007996470511
+        },
+        {
+          "variable": "fruit_veg",
+          "estimate": -3.348426428326035,
+          "expected_sign": 1,
+          "observed_sign": -1,
+          "agrees": false,
+          "p_value": 0.046906943603679044
+        }
+      ]
+    }
+  },
+  "elimination_steps": []
+}

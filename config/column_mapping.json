@@ -1,0 +1,84 @@
+{
+  "_comment": "Maps dataset headers to HEARTLAB model variables. Resolution order per variable: 'header' (exact, required if set) -> 'known_headers' (exact names of the configured dataset, used when present) -> 'patterns' (case-insensitive substrings). Units and definitions below are taken from the configured dataset's own headers and outcome_definition column.",
+  "dataset_file": "HEARTLAB_1998_CDC_CHD_dataset.csv",
+  "sheet": null,
+  "header_row": null,
+  "state_column": {
+    "header": null,
+    "known_headers": ["state"],
+    "patterns": ["state", "location", "area", "jurisdiction", "name"]
+  },
+  "include_district_of_columbia": true,
+  "include_territories": false,
+  "variables": {
+    "heart_disease": {
+      "role": "dependent",
+      "symbol": "Y",
+      "label": "CHD death rate",
+      "short": "CHD deaths",
+      "header": null,
+      "known_headers": ["coronary_heart_disease_age_adjusted_death_rate_per_100k_age_35_plus"],
+      "patterns": ["heart", "cardio", "chd", "cvd"],
+      "unit": "deaths per 100,000",
+      "definition": "Coronary heart disease mortality (ICD-9 410.0-414.9), age-adjusted to the 2000 U.S. standard population, persons aged 35 and older, 1998",
+      "expected_sign": null
+    },
+    "smoking": {
+      "role": "predictor",
+      "symbol": "X1",
+      "label": "Current smoking",
+      "short": "Smoking",
+      "header": null,
+      "known_headers": ["current_smoking_percent"],
+      "patterns": ["smok", "cigar", "tobacco"],
+      "unit": "% of adults",
+      "definition": "Percentage of adults who currently smoke cigarettes, 1998",
+      "expected_sign": 1
+    },
+    "obesity": {
+      "role": "predictor",
+      "symbol": "X2",
+      "label": "Obesity",
+      "short": "Obesity",
+      "header": null,
+      "known_headers": ["obesity_percent_bmi_ge_30"],
+      "patterns": ["obes", "bmi"],
+      "unit": "% of adults",
+      "definition": "Percentage of adults with body mass index of 30 or higher, 1998",
+      "expected_sign": 1
+    },
+    "inactivity": {
+      "role": "predictor",
+      "symbol": "X3",
+      "label": "No leisure-time exercise",
+      "short": "Inactivity",
+      "header": null,
+      "known_headers": ["no_leisure_exercise_percent"],
+      "patterns": ["inactiv", "physical", "exercise", "sedentary", "leisure"],
+      "unit": "% of adults",
+      "definition": "Percentage of adults reporting no leisure-time physical activity or exercise, 1998",
+      "expected_sign": 1
+    },
+    "fruit_veg": {
+      "role": "predictor",
+      "symbol": "X4",
+      "label": "Low fruit & vegetable intake",
+      "short": "Low fruit/veg",
+      "header": null,
+      "known_headers": ["less_than_5_fruit_vegetable_servings_percent"],
+      "patterns": ["fruit", "veg", "5 a day", "five a day"],
+      "unit": "% of adults",
+      "definition": "Percentage of adults eating fewer than five servings of fruit and vegetables per day, 1998. Higher values mean a worse diet, so a positive association is the plausible direction.",
+      "expected_sign": 1
+    }
+  },
+  "source": {
+    "file": "HEARTLAB_1998_CDC_CHD_dataset.csv",
+    "publisher": "U.S. Centers for Disease Control and Prevention (published state-level tables)",
+    "year": 1998,
+    "risk_factor_year": 1998,
+    "outcome_year": 1998,
+    "provenance": "Assembled from separate CDC-published state tables (file column source_status = 'assembled_from_separate_CDC_published_tables_not_original_CDCHeartRisk.xls'). It is not the original textbook spreadsheet CDCHeartRisk.xls, so results may differ from the textbook's.",
+    "year_note": "Risk factors and the CHD mortality outcome are both 1998 in this file. The textbook (Section 14.3.6) dates its CDCHeartRisk.xls to 1999 and the companion handout to 1998; that discrepancy concerns the original spreadsheet, not this file."
+  }
+}
